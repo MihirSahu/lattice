@@ -1,0 +1,132 @@
+name: lattice
+
+services:
+  web:
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - qmd
+      - opencode-query
+      - sync-worker
+    environment:
+      WEB_SYNC_WORKER_URL: ${WEB_SYNC_WORKER_URL}
+      WEB_QMD_SERVICE_URL: ${WEB_QMD_SERVICE_URL}
+      WEB_OPENCODE_SERVICE_URL: ${WEB_OPENCODE_SERVICE_URL}
+      WEB_DEFAULT_QUERY_LIMIT: ${WEB_DEFAULT_QUERY_LIMIT}
+      PORT: ${WEB_INTERNAL_PORT}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+
+  qmd:
+    build:
+      context: ../..
+      dockerfile: services/qmd/Dockerfile
+    restart: unless-stopped
+    expose:
+      - "8181"
+    environment:
+      QMD_PORT: ${QMD_PORT}
+      QMD_DB_PATH: ${QMD_DB_PATH}
+      QMD_COLLECTION: ${QMD_COLLECTION}
+      QMD_RESULT_LIMIT: ${QMD_RESULT_LIMIT}
+      VAULT_MIRROR_DIR: ${VAULT_MIRROR_DIR}
+      XDG_CACHE_HOME: /var/cache/qmd
+    volumes:
+      - type: bind
+        source: ${LATTICE_DATA_ROOT}/vault
+        target: /srv/vault-mirror
+      - type: bind
+        source: ${LATTICE_DATA_ROOT}/qmd
+        target: /var/lib/qmd
+      - type: bind
+        source: ${LATTICE_DATA_ROOT}/qmd-cache
+        target: /var/cache/qmd
+
+  opencode-query:
+    build:
+      context: ../..
+      dockerfile: services/opencode-query/Dockerfile
+    restart: unless-stopped
+    expose:
+      - "8282"
+    environment:
+      OPENCODE_QUERY_PORT: ${OPENCODE_QUERY_PORT}
+      OPENCODE_QUERY_TIMEOUT_MS: ${OPENCODE_QUERY_TIMEOUT_MS}
+      OPENCODE_PROMPT_HEARTBEAT_MS: ${OPENCODE_PROMPT_HEARTBEAT_MS}
+      OPENCODE_MODEL: ${OPENCODE_MODEL}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      VAULT_MIRROR_DIR: ${VAULT_MIRROR_DIR}
+    volumes:
+      - type: bind
+        source: ${LATTICE_DATA_ROOT}/vault
+        target: /srv/vault-mirror
+
+  sync-worker:
+    build:
+      context: ../..
+      dockerfile: services/sync-worker/Dockerfile
+    restart: unless-stopped
+    init: true
+    expose:
+      - "4000"
+    environment:
+      SYNC_WORKER_PORT: ${SYNC_WORKER_PORT}
+      SYNC_AWS_REGION: ${SYNC_AWS_REGION}
+      SYNC_S3_BUCKET: ${SYNC_S3_BUCKET}
+      SYNC_S3_PREFIX: ${SYNC_S3_PREFIX}
+      SYNC_DELETE: ${SYNC_DELETE}
+      VAULT_MIRROR_DIR: ${VAULT_MIRROR_DIR}
+      STATUS_DIR: ${STATUS_DIR}
+      LOG_DIR: ${LOG_DIR}
+      QMD_DB_PATH: ${QMD_DB_PATH}
+      QMD_COLLECTION: ${QMD_COLLECTION}
+      QMD_EMBED_STRATEGY: ${QMD_EMBED_STRATEGY}
+      QMD_SERVICE_URL: http://qmd:8181
+      OPENCODE_QUERY_SERVICE_URL: http://opencode-query:8282
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN}
+      XDG_CACHE_HOME: /var/cache/qmd
+    volumes:
+      - type: bind
+        source: ${LATTICE_DATA_ROOT}/vault
+        target: /srv/vault-mirror
+      - type: bind
+        source: ${LATTICE_DATA_ROOT}/qmd
+        target: /var/lib/qmd
+      - type: bind
+        source: ${LATTICE_DATA_ROOT}/qmd-cache
+        target: /var/cache/qmd
+      - type: bind
+        source: ${LATTICE_DATA_ROOT}/status
+        target: /var/lib/lattice
+      - type: bind
+        source: ${LATTICE_DATA_ROOT}/logs
+        target: /var/log/lattice
+
+  scheduler:
+    build:
+      context: ../..
+      dockerfile: services/scheduler/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - sync-worker
+    environment:
+      SYNC_WORKER_URL: http://sync-worker:4000
+      SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL_SECONDS}
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    profiles:
+      - cloudflare
+    depends_on:
+      - web
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --token
+      - ${CLOUDFLARE_TUNNEL_TOKEN}

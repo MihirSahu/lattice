@@ -1,0 +1,16 @@
+.DS_Store
+.env
+.env.local
+.next
+node_modules
+dist
+coverage
+*.log
+
+data/*
+!data/.gitkeep
+data/runtime/
+
+*.sqlite
+*.gguf
+

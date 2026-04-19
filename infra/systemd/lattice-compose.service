@@ -1,0 +1,16 @@
+[Unit]
+Description=Lattice Docker Compose Stack
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/lattice
+ExecStart=/usr/bin/docker compose --env-file .env -f infra/docker/docker-compose.yml up -d
+ExecStop=/usr/bin/docker compose --env-file .env -f infra/docker/docker-compose.yml down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
