@@ -12,8 +12,7 @@ const themeBootScript = `
   (function () {
     try {
       var stored = window.localStorage.getItem("lattice-theme");
-      var system = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-      var theme = stored || system;
+      var theme = stored || "light";
       document.documentElement.dataset.theme = theme;
       document.documentElement.style.colorScheme = theme;
     } catch (e) {

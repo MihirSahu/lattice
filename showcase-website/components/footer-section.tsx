@@ -1,4 +1,4 @@
-const STACK = ["Next.js 15", "Docker", "QMD", "Cloudflare", "TypeScript", "Raspberry Pi"];
+const STACK = ["Next.js 15", "Docker", "QMD", "Cloudflare", "TypeScript", "AWS S3"];
 
 export default function FooterSection() {
   return (

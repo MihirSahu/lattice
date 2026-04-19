@@ -13,7 +13,7 @@ export default function ArchSection() {
           <div className="section-label">Architecture</div>
           <h2 className="section-h2">From vault to answer, end to end.</h2>
           <p className="section-sub">
-            Obsidian writes to S3 via Remotely Save. The Pi takes it from there — syncing, indexing,
+            Obsidian writes to S3 via Remotely Save. The stack takes it from there — syncing, indexing,
             and serving — entirely on your hardware.
           </p>
         </div>
