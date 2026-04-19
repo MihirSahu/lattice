@@ -31,10 +31,35 @@ function IconPanelLeftClose() {
   );
 }
 
+function IconPanelLeftOpen() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+      <path d="M9 3v18" /><path d="m14 9 3 3-3 3" />
+    </svg>
+  );
+}
+
 function IconGlobe() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
       <circle cx="12" cy="12" r="10" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /><path d="M2 12h20" />
+    </svg>
+  );
+}
+
+function IconSlidersHorizontal() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="21" x2="14" y1="4" y2="4" />
+      <line x1="10" x2="3" y1="4" y2="4" />
+      <line x1="21" x2="12" y1="12" y2="12" />
+      <line x1="8" x2="3" y1="12" y2="12" />
+      <line x1="21" x2="16" y1="20" y2="20" />
+      <line x1="12" x2="3" y1="20" y2="20" />
+      <line x1="14" x2="14" y1="2" y2="6" />
+      <line x1="8" x2="8" y1="10" y2="14" />
+      <line x1="16" x2="16" y1="18" y2="22" />
     </svg>
   );
 }
@@ -55,7 +80,6 @@ const s = {
     minWidth: 220,
     borderRight: "1px solid var(--border-subtle)",
     background: "var(--bg-panel)",
-    display: "flex",
     flexDirection: "column" as const,
     overflow: "hidden",
   },
@@ -171,7 +195,6 @@ const s = {
     borderRadius: 12,
     border: "1px solid var(--border-subtle)",
     background: "var(--bg-surface)",
-    display: "flex",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -255,6 +278,12 @@ const s = {
     justifyContent: "space-between",
     gap: 8,
   },
+  composerMobileRow: {
+    display: "none",
+    alignItems: "center",
+    gap: 10,
+    padding: "10px 12px",
+  },
   composerPills: {
     display: "flex",
     gap: 6,
@@ -275,7 +304,6 @@ const s = {
     width: 32,
     height: 32,
     borderRadius: 999,
-    display: "flex",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -334,10 +362,10 @@ export default function HeroSection() {
             </div>
 
             {/* App shell */}
-            <div style={{ display: "flex", height: 420 }}>
+            <div className="preview-shell-body">
 
               {/* ── Sidebar ── */}
-              <div style={s.sidebar}>
+              <div className="preview-sidebar" style={s.sidebar}>
                 <div style={s.sidebarHeader}>
                   {/* Brand */}
                   <div style={s.brandRow}>
@@ -375,45 +403,48 @@ export default function HeroSection() {
               </div>
 
               {/* ── Main panel ── */}
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+              <div className="preview-main" style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
 
                 {/* Navbar */}
-                <div className="chat-navbar-shell" style={s.navbar}>
+                <div className="chat-navbar-shell preview-navbar" style={s.navbar}>
                   <div style={s.navLeft}>
-                    <div style={s.navIconBtn}>
+                    <div className="preview-nav-button preview-nav-button-mobile" style={s.navIconBtn}>
+                      <IconPanelLeftOpen />
+                    </div>
+                    <div className="preview-nav-button preview-nav-button-desktop" style={s.navIconBtn}>
                       <IconPanelLeftClose />
                     </div>
                     <div style={s.navTitleBlock}>
-                      <span style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.4, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      <span className="preview-nav-title" style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.4, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         Reading notes on Thinking, Fast and Slow
                       </span>
-                      <span style={{ fontSize: 11.5, lineHeight: 1.4, color: "var(--text-tertiary)" }}>
+                      <span className="preview-nav-meta" style={{ fontSize: 11.5, lineHeight: 1.4, color: "var(--text-tertiary)" }}>
                         All Sources · QMD
                       </span>
                     </div>
                   </div>
-                  <span className="linear-pill" style={s.chatModePill}>
+                  <span className="linear-pill preview-chat-pill" style={s.chatModePill}>
                     Chat mode
                   </span>
                 </div>
 
                 {/* Messages */}
-                <div style={s.messagesArea}>
+                <div className="preview-messages" style={s.messagesArea}>
                   {/* User message */}
                   <div style={s.userMsg}>
-                    <div style={s.msgLabel}>Prompt</div>
-                    <p style={s.userText}>
+                    <div className="preview-msg-label" style={s.msgLabel}>Prompt</div>
+                    <p className="preview-user-text" style={s.userText}>
                       What are my reading notes on Thinking, Fast and Slow?
                     </p>
                   </div>
 
                   {/* Assistant message */}
                   <div>
-                    <div style={s.msgLabel}>Answer</div>
-                    <p style={s.answerText}>
+                    <div className="preview-msg-label" style={s.msgLabel}>Answer</div>
+                    <p className="preview-answer-text" style={s.answerText}>
                       Your notes cover Kahneman&apos;s two-system framework. System 1 operates automatically with little effort, while System 2 allocates attention to effortful activities. Key highlights include the availability heuristic, anchoring effects, and the planning fallacy.
                     </p>
-                    <div style={s.answerFooter}>
+                    <div className="preview-answer-footer" style={s.answerFooter}>
                       <span>QMD</span>
                       <span style={{ opacity: 0.4 }}>·</span>
                       <span>All Sources</span>
@@ -424,24 +455,37 @@ export default function HeroSection() {
                 </div>
 
                 {/* Composer */}
-                <div className="chat-composer-dock" style={s.composerWrap}>
+                <div className="chat-composer-dock preview-composer-shell" style={s.composerWrap}>
                   <div className="chat-composer-docked" style={s.composerInner}>
-                    {/* Body */}
-                    <div style={s.composerBody}>
-                      <span style={{ fontSize: 15, color: "var(--text-tertiary)", display: "block", padding: "2px 0" }}>
-                        Ask Lattice
-                      </span>
-                    </div>
-                    {/* Footer */}
-                    <div style={s.composerFooter}>
-                      <div style={s.composerPills}>
-                        <span className="linear-pill" style={s.pill}>QMD</span>
-                        <span className="linear-pill" style={s.pill}>
-                          <IconGlobe />
-                          All Sources
+                    <div className="preview-composer-desktop">
+                      {/* Body */}
+                      <div style={s.composerBody}>
+                        <span style={{ fontSize: 15, color: "var(--text-tertiary)", display: "block", padding: "2px 0" }}>
+                          Ask Lattice
                         </span>
                       </div>
-                      <div style={s.submitBtn}>
+                      {/* Footer */}
+                      <div className="preview-composer-footer" style={s.composerFooter}>
+                        <div style={s.composerPills}>
+                          <span className="linear-pill" style={s.pill}>QMD</span>
+                          <span className="linear-pill" style={s.pill}>
+                            <IconGlobe />
+                            All Sources
+                          </span>
+                        </div>
+                        <div className="preview-composer-button" style={s.submitBtn}>
+                          <IconArrowUp />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="preview-composer-mobile-row" style={s.composerMobileRow}>
+                      <div className="preview-composer-button preview-composer-settings-button" style={s.navIconBtn}>
+                        <IconSlidersHorizontal />
+                      </div>
+                      <span className="preview-composer-mobile-input">
+                        Ask Lattice
+                      </span>
+                      <div className="preview-composer-button" style={s.submitBtn}>
                         <IconArrowUp />
                       </div>
                     </div>
