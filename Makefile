@@ -10,6 +10,9 @@ export
 up:
 	docker compose --env-file .env -f $(COMPOSE_FILE) up --build -d
 
+up-attached:
+	docker compose --env-file .env -f $(COMPOSE_FILE) up --build -d
+
 down:
 	docker compose --env-file .env -f $(COMPOSE_FILE) down
 
