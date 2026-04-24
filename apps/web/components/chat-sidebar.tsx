@@ -15,14 +15,15 @@ import {
   SidebarMenuItem
 } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
-import type { ChatThread } from "@/lib/schemas";
+import type { ChatThreadSummary, DraftThreadSettings } from "@/lib/schemas";
 
 type ChatSidebarProps = {
   activeThreadId: string | null;
   collapsed?: boolean;
+  draftThreadSettings: DraftThreadSettings;
   disabled?: boolean;
   mobile?: boolean;
-  threads: ChatThread[];
+  threads: ChatThreadSummary[];
   onCreateThread: () => void;
   onSelectThread: (threadId: string) => void;
 };
@@ -37,6 +38,7 @@ function formatTimestamp(timestamp: string) {
 export function ChatSidebar({
   activeThreadId,
   collapsed = false,
+  draftThreadSettings,
   disabled = false,
   mobile = false,
   threads,
@@ -46,6 +48,7 @@ export function ChatSidebar({
   const sortedThreads = [...threads].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
   const activeThread = sortedThreads.find((thread) => thread.id === activeThreadId) ?? null;
   const previousThreads = sortedThreads.filter((thread) => thread.id !== activeThreadId);
+  const draftLabel = `${draftThreadSettings.folder || "All Sources"} · ${draftThreadSettings.engine.toUpperCase()}`;
   const isCollapsed = mobile ? false : collapsed;
 
   const sidebarBody = (
@@ -105,7 +108,31 @@ export function ChatSidebar({
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroup>
-        ) : null}
+        ) : (
+          <SidebarGroup>
+            {!isCollapsed ? <SidebarGroupLabel>Current chat</SidebarGroupLabel> : null}
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  active
+                  className={isCollapsed ? "items-center px-0 py-2" : undefined}
+                  disabled={disabled}
+                  onClick={onCreateThread}
+                  title={`New chat · ${draftLabel}`}
+                >
+                  {isCollapsed ? (
+                    <span className="h-2.5 w-2.5 rounded-full bg-current" />
+                  ) : (
+                    <>
+                      <span className="line-clamp-2 text-[14px] font-[600] leading-[1.45]">New chat</span>
+                      <span className="text-[12px] leading-[1.45] text-[var(--text-tertiary)]">{draftLabel}</span>
+                    </>
+                  )}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroup>
+        )}
 
         <SidebarGroup className="mb-0">
           {!isCollapsed ? <SidebarGroupLabel>Previous chats</SidebarGroupLabel> : null}

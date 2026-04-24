@@ -1,0 +1,11 @@
+{
+  "version": "manual",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "tag": "0000_chat_persistence",
+      "breakpoints": true
+    }
+  ]
+}

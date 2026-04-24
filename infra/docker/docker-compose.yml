@@ -15,9 +15,16 @@ services:
       WEB_QMD_SERVICE_URL: ${WEB_QMD_SERVICE_URL}
       WEB_OPENCODE_SERVICE_URL: ${WEB_OPENCODE_SERVICE_URL}
       WEB_DEFAULT_QUERY_LIMIT: ${WEB_DEFAULT_QUERY_LIMIT}
+      CHAT_DB_PATH: ${CHAT_DB_PATH}
+      WEB_AUTH_MODE: ${WEB_AUTH_MODE}
+      WEB_DEV_USER_EMAIL: ${WEB_DEV_USER_EMAIL}
       PORT: ${WEB_INTERNAL_PORT}
     ports:
       - "${WEB_PORT:-3000}:3000"
+    volumes:
+      - type: bind
+        source: ${LATTICE_DATA_ROOT}/chat
+        target: /var/lib/lattice/chat
 
   qmd:
     build:

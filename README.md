@@ -93,7 +93,7 @@ Node-based backend services now compile TypeScript source from `src/` into `dist
 4. Create the runtime directories:
 
 ```bash
-mkdir -p /srv/lattice/{vault,qmd,status,logs}
+mkdir -p /srv/lattice/{vault,qmd,status,logs,chat}
 ```
 
 5. Point `LATTICE_DATA_ROOT=/srv/lattice`.
@@ -111,6 +111,9 @@ docker compose --env-file .env -f infra/docker/docker-compose.yml up --build -d
 | --- | --- |
 | `LATTICE_PUBLIC_URL` | External URL used by the UI and Cloudflare |
 | `LATTICE_DATA_ROOT` | Host directory for persistent bind mounts |
+| `CHAT_DB_PATH` | Local SQLite path used for persisted chat history |
+| `WEB_AUTH_MODE` | Web auth mode: `dev` is the default local setup, `cloudflare` requires the Cloudflare Access email header, and `auto` is an optional hybrid mode that prefers the Cloudflare header and otherwise uses `WEB_DEV_USER_EMAIL` when configured |
+| `WEB_DEV_USER_EMAIL` | Development identity used when `WEB_AUTH_MODE=dev`, and as the fallback identity in `WEB_AUTH_MODE=auto` when Cloudflare headers are absent |
 | `OPENROUTER_API_KEY` | OpenRouter API key used by the OpenCode query service |
 | `SYNC_S3_BUCKET` | S3 bucket containing the mirrored vault |
 | `SYNC_S3_PREFIX` | Bucket prefix used for the Obsidian vault |
@@ -144,6 +147,8 @@ Only the web service should be exposed. QMD and the sync worker remain internal-
 3. Add a Cloudflare Access policy requiring your identity provider before the web app is reachable.
 4. Put the generated tunnel token into `CLOUDFLARE_TUNNEL_TOKEN`.
 
+For local development without Cloudflare, use `WEB_AUTH_MODE=dev` and set `WEB_DEV_USER_EMAIL=you@example.com`. For production behind Cloudflare Access, set `WEB_AUTH_MODE=cloudflare` so requests must include the Cloudflare Access email header. Use `WEB_AUTH_MODE=auto` only if you intentionally want one config that accepts Cloudflare-authenticated traffic and also falls back to `WEB_DEV_USER_EMAIL` in non-Cloudflare environments.
+
 More detail is in [`infra/cloudflare/tunnel-notes.md`](infra/cloudflare/tunnel-notes.md).
 
 ## Container Startup and Runtime Data
@@ -152,6 +157,7 @@ Persistent directories expected under `LATTICE_DATA_ROOT`:
 
 - `vault/` for the local mirror
 - `qmd/` for the QMD SQLite store and model cache
+- `chat/` for the web app SQLite chat history
 - `status/` for `status.json`
 - `logs/` for per-run sync and indexing logs
 
@@ -202,7 +208,7 @@ curl -fsS http://localhost:4000/status | jq
 ## Maintenance and Upgrade Notes
 
 - Rebuild after code changes with `make up`
-- Back up the `vault/`, `qmd/`, and `status/` directories before major upgrades
+- Back up the `vault/`, `qmd/`, `chat/`, and `status/` directories before major upgrades
 - If QMD schema changes, stop the stack, snapshot the `qmd/` directory, then rebuild
 - Rotate the AWS key and Cloudflare tunnel token periodically
 
