@@ -1,6 +1,13 @@
 import { config } from "@/lib/config";
 import { DrizzleSqliteChatStore } from "@/lib/server/drizzle-sqlite-chat-store";
-import type { AskErrorResponse, AskResponse, ChatAskRequest, ChatThreadDetail, ChatThreadSummary } from "@/lib/schemas";
+import type {
+  AskErrorResponse,
+  AskResponse,
+  ChatAskRequest,
+  ChatThreadDetail,
+  ChatThreadSummary,
+  PendingAssistantStreamState
+} from "@/lib/schemas";
 
 export type UpsertThreadSettingsInput = {
   threadId: string;
@@ -22,6 +29,7 @@ export type AppendQuestionAndAnswerInput = {
   openAiRoute?: ChatAskRequest["openAiRoute"];
   successResponse?: AskResponse;
   errorResponse?: AskErrorResponse;
+  assistantStream?: PendingAssistantStreamState | null;
 };
 
 export interface ChatStore {

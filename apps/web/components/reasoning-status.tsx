@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, CircleDashed, Clock3, FileText, FolderTree, Hammer, LoaderCircle, Search, Sparkles, Terminal } from "lucide-react";
+import { AlertCircle, Check, CheckCircle2, ChevronDown, ChevronRight, CircleDashed, Clock3, FileText, FolderTree, Hammer, LoaderCircle, Search, Sparkles, Terminal } from "lucide-react";
 import { LoadingDots } from "@/components/ui/loading-dots";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { PendingAssistantStreamState, ReasoningTraceEntry, TraceFileReference } from "@/lib/schemas";
 
@@ -96,6 +98,21 @@ function formatFileRange(file: TraceFileReference) {
   return String(file.lineStart ?? file.lineEnd);
 }
 
+function getFileDisplayName(path: string) {
+  const normalizedPath = path.replace(/[\\/]+$/, "");
+  const fileName = normalizedPath.split(/[\\/]/).pop();
+
+  return fileName || path;
+}
+
+function getFileKey(file: TraceFileReference) {
+  return `${file.operation}-${file.path}-${file.lineStart ?? ""}-${file.lineEnd ?? ""}`;
+}
+
+function getClipboardFilePath(path: string) {
+  return path.endsWith(".md") ? path.slice(0, -3) : path;
+}
+
 function formatTokens(entry: ReasoningTraceEntry) {
   if (!entry.tokens) {
     return null;
@@ -109,8 +126,10 @@ function formatTokens(entry: ReasoningTraceEntry) {
 
 export function ReasoningStatus({ stream, complete = false, defaultCollapsed = false }: ReasoningStatusProps) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const [copiedFileKey, setCopiedFileKey] = useState<string | null>(null);
   const entriesScrollRef = useRef<HTMLDivElement | null>(null);
   const reasoningScrollRef = useRef<HTMLDivElement | null>(null);
+  const copiedFileTimeoutRef = useRef<number | null>(null);
   const entries = stream?.entries ?? [];
   const reasoningText = stream?.reasoningText ?? "";
   const files = stream?.files ?? [];
@@ -129,8 +148,36 @@ export function ReasoningStatus({ stream, complete = false, defaultCollapsed = f
     }
   }, [reasoningText]);
 
+  useEffect(() => {
+    return () => {
+      if (copiedFileTimeoutRef.current !== null) {
+        window.clearTimeout(copiedFileTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  async function handleCopyFilePath(file: TraceFileReference) {
+    const fileKey = getFileKey(file);
+
+    try {
+      await navigator.clipboard.writeText(getClipboardFilePath(file.path));
+      setCopiedFileKey(fileKey);
+
+      if (copiedFileTimeoutRef.current !== null) {
+        window.clearTimeout(copiedFileTimeoutRef.current);
+      }
+
+      copiedFileTimeoutRef.current = window.setTimeout(() => {
+        setCopiedFileKey((current) => (current === fileKey ? null : current));
+      }, 1500);
+    } catch {
+      // Match the chat copy behavior: clipboard failures do not interrupt the UI.
+    }
+  }
+
   return (
-    <div className="space-y-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-panel)] px-5 py-4">
+    <TooltipProvider delayDuration={250}>
+      <div className="space-y-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-panel)] px-5 py-4">
       <div className="flex items-center justify-between gap-4">
         <button
           type="button"
@@ -187,13 +234,37 @@ export function ReasoningStatus({ stream, complete = false, defaultCollapsed = f
           <div className="grid gap-2 sm:grid-cols-2">
             {files.slice(-8).map((file) => {
               const range = formatFileRange(file);
+              const fileKey = getFileKey(file);
+              const copied = copiedFileKey === fileKey;
 
               return (
-                <div key={`${file.operation}-${file.path}-${file.lineStart ?? ""}-${file.lineEnd ?? ""}`} className="flex min-w-0 items-center gap-2 rounded-xl border border-[var(--border-subtle)] px-3 py-2 text-[12px] text-[var(--text-tertiary)]">
-                  <span className="shrink-0 text-[var(--text-quaternary)]" aria-hidden="true">{getFileIcon(file)}</span>
-                  <span className="min-w-0 flex-1 truncate">{file.path}</span>
-                  <span className="shrink-0 text-[var(--text-quaternary)]">{formatFileOperation(file)}{range ? `:${range}` : ""}</span>
-                </div>
+                <Tooltip key={fileKey}>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="flex !h-auto w-full min-w-0 !justify-start gap-2 overflow-hidden rounded-xl border border-[var(--border-subtle)] px-3 py-2 !text-[13px] font-[400] !leading-[1.55] text-[var(--text-tertiary)] hover:bg-[var(--bg-button-subtle)]"
+                      onClick={() => handleCopyFilePath(file)}
+                      aria-label={`Copy ${file.path}`}
+                    >
+                      <span className="shrink-0 text-[var(--text-quaternary)]" aria-hidden="true">{getFileIcon(file)}</span>
+                      <span className="min-w-0 flex-1 truncate text-left">{getFileDisplayName(file.path)}</span>
+                      <span className="inline-flex shrink-0 items-center gap-1 text-[12px] text-[var(--text-quaternary)]">
+                        {copied ? (
+                          <>
+                            <Check className="h-3 w-3" aria-hidden="true" />
+                            copied
+                          </>
+                        ) : (
+                          `${formatFileOperation(file)}${range ? `:${range}` : ""}`
+                        )}
+                      </span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {file.path}
+                  </TooltipContent>
+                </Tooltip>
               );
             })}
           </div>
@@ -237,6 +308,7 @@ export function ReasoningStatus({ stream, complete = false, defaultCollapsed = f
           <p className="whitespace-pre-wrap linear-mono text-[12px] leading-[1.7] text-[var(--text-secondary)]">{reasoningPreview}</p>
         </div>
       ) : null}
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }

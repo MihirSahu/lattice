@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createPendingAssistantStreamState } from "../lib/chat-trace.ts";
 import {
   createDraftThreadSettings,
-  createPendingAssistantStreamState,
   getChatCacheStorageKey,
   getChatUiStorageKey,
   loadLocalChatCache,
@@ -238,4 +238,38 @@ test("toDisplayMessages preserves resolved assistant stream state", () => {
 
   assert.equal(messages[0]?.response?.answer, "The answer.");
   assert.equal(messages[0]?.stream?.reasoningText, "Inspected notes/day.md");
+});
+
+test("toDisplayMessages prefers persisted assistant stream state over resolved fallback", () => {
+  const messages = toDisplayMessages(
+    [
+      {
+        id: "7a2b98ee-9714-4ead-a325-fae569b8b41d",
+        role: "assistant",
+        status: "complete",
+        createdAt: "2026-04-20T12:00:05.000Z",
+        response: {
+          ok: true,
+          backend: "opencode",
+          mode: "agent",
+          question: "What changed?",
+          answer: "The answer.",
+          sources: []
+        },
+        stream: {
+          ...createPendingAssistantStreamState(),
+          reasoningText: "Persisted trace"
+        }
+      }
+    ],
+    null,
+    {
+      "7a2b98ee-9714-4ead-a325-fae569b8b41d": {
+        ...createPendingAssistantStreamState(),
+        reasoningText: "Resolved fallback"
+      }
+    }
+  );
+
+  assert.equal(messages[0]?.stream?.reasoningText, "Persisted trace");
 });

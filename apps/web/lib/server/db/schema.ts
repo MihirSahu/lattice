@@ -39,7 +39,17 @@ export const chatMessages = sqliteTable(
   })
 );
 
+export const chatMessageTraces = sqliteTable("chat_message_traces", {
+  messageId: text("message_id")
+    .primaryKey()
+    .references(() => chatMessages.id, { onDelete: "cascade" }),
+  streamJson: text("stream_json").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull()
+});
+
 export const schema = {
   chatThreads,
-  chatMessages
+  chatMessages,
+  chatMessageTraces
 };
