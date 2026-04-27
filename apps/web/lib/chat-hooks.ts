@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { parseChatAskStreamEvent, readNdjsonStream, type OpenCodeTraceEvent } from "@/lib/chat-stream";
 import {
   chatAskResponseSchema,
   chatThreadDetailResponseSchema,
@@ -23,6 +24,11 @@ type ThreadPatchRequest = {
   engine?: "qmd" | "opencode";
   folder?: string;
   model?: ChatAskRequest["model"] | null;
+  openAiRoute?: ChatAskRequest["openAiRoute"] | null;
+};
+
+export type ChatAskStreamRequest = ChatAskRequest & {
+  onStreamEvent?: (event: OpenCodeTraceEvent) => void;
 };
 
 export const chatQueryKeys = {
@@ -77,25 +83,66 @@ async function updateThreadSettings(request: ThreadPatchRequest): Promise<ChatTh
         title: request.title,
         engine: request.engine,
         folder: request.folder,
-        model: request.model
+        model: request.model,
+        openAiRoute: request.openAiRoute
       })
     },
     (json) => chatThreadSummaryResponseSchema.parse(json).thread
   );
 }
 
-async function askChat(request: ChatAskRequest): Promise<ChatAskResponse> {
-  return fetchJson(
-    "/api/chat/ask",
-    {
-      method: "POST",
-      headers: {
-        "content-type": "application/json"
-      },
-      body: JSON.stringify(request)
+async function askChat(request: ChatAskStreamRequest): Promise<ChatAskResponse> {
+  const response = await fetch("/api/chat/ask", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      accept: "application/x-ndjson"
     },
-    (json) => chatAskResponseSchema.parse(json)
-  );
+    body: JSON.stringify({
+      threadId: request.threadId,
+      question: request.question,
+      engine: request.engine,
+      folder: request.folder,
+      model: request.model,
+      openAiRoute: request.openAiRoute
+    }),
+    cache: "no-store"
+  });
+
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (!response.ok || !contentType.includes("application/x-ndjson")) {
+    const json = await response.json();
+    const message = typeof json?.error === "string" ? json.error : "Request failed.";
+    throw new HttpError(message, response.status);
+  }
+
+  let finalResponse: ChatAskResponse | null = null;
+  let streamErrorMessage: string | null = null;
+
+  await readNdjsonStream(response, parseChatAskStreamEvent, (event) => {
+    if (event.type === "final") {
+      finalResponse = event.response;
+      return;
+    }
+
+    if (event.type === "error") {
+      streamErrorMessage = event.message;
+      return;
+    }
+
+    request.onStreamEvent?.(event);
+  });
+
+  if (streamErrorMessage) {
+    throw new HttpError(streamErrorMessage, 502);
+  }
+
+  if (!finalResponse) {
+    throw new HttpError("Chat stream ended without a final response.", 502);
+  }
+
+  return chatAskResponseSchema.parse(finalResponse);
 }
 
 async function getSourceFolders(): Promise<SourceFolder[]> {
@@ -140,7 +187,7 @@ export function useThreadDetailQuery(threadId: string | null, initialData?: Chat
 }
 
 export function useAskChatMutation() {
-  return useMutation<ChatAskResponse, Error, ChatAskRequest>({
+  return useMutation<ChatAskResponse, Error, ChatAskStreamRequest>({
     mutationFn: askChat
   });
 }

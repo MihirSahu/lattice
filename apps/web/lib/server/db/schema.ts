@@ -9,6 +9,7 @@ export const chatThreads = sqliteTable(
     engine: text("engine").notNull(),
     folder: text("folder").notNull().default(""),
     model: text("model"),
+    openAiRoute: text("openai_route"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull()
   },

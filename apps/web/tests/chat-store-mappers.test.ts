@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { chatAskRequestSchema, chatAskResponseSchema, chatThreadsResponseSchema } from "../lib/schemas.ts";
+import { chatAskRequestSchema, chatAskResponseSchema, chatThreadsResponseSchema, opencodeModelIdSchema } from "../lib/schemas.ts";
 import { mapPersistedChatMessageRow, mapThreadDetail, mapThreadSummaryRow } from "../lib/server/chat-store-mappers.ts";
 
 test("mapThreadSummaryRow maps persisted thread rows into API-safe summaries", () => {
@@ -9,14 +9,52 @@ test("mapThreadSummaryRow maps persisted thread rows into API-safe summaries", (
     title: "How does sync work?",
     engine: "opencode",
     folder: "notes/infra",
-    model: "openai/gpt-5",
+    model: "openai/gpt-5.5",
+    openAiRoute: "openrouter",
     createdAt: "2026-04-20T12:00:00.000Z",
     updatedAt: "2026-04-20T12:00:05.000Z"
   });
 
   assert.equal(summary.title, "How does sync work?");
   assert.equal(summary.engine, "opencode");
-  assert.equal(summary.model, "openai/gpt-5");
+  assert.equal(summary.model, "openai/gpt-5.5");
+  assert.equal(summary.openAiRoute, "openrouter");
+});
+
+test("mapThreadSummaryRow upgrades legacy GPT-5 persisted rows", () => {
+  const summary = mapThreadSummaryRow({
+    id: "0ff3dc7a-cfdf-4476-8a3c-d0ca9a2e0e8b",
+    title: "Legacy GPT chat",
+    engine: "opencode",
+    folder: "",
+    model: "openai/gpt-5",
+    openAiRoute: "openrouter",
+    createdAt: "2026-04-20T12:00:00.000Z",
+    updatedAt: "2026-04-20T12:00:05.000Z"
+  });
+
+  assert.equal(summary.model, "openai/gpt-5.5");
+  assert.equal(summary.openAiRoute, "openrouter");
+});
+
+test("mapThreadSummaryRow infers subscription for legacy OpenAI threads", () => {
+  const summary = mapThreadSummaryRow({
+    id: "0ff3dc7a-cfdf-4476-8a3c-d0ca9a2e0e8b",
+    title: "Legacy GPT chat",
+    engine: "opencode",
+    folder: "",
+    model: "openai/gpt-5.5",
+    openAiRoute: null,
+    createdAt: "2026-04-20T12:00:00.000Z",
+    updatedAt: "2026-04-20T12:00:05.000Z"
+  });
+
+  assert.equal(summary.openAiRoute, "subscription");
+});
+
+test("OpenCode model schema accepts Opus and rejects removed Grok", () => {
+  assert.equal(opencodeModelIdSchema.parse("anthropic/claude-opus-4.6"), "anthropic/claude-opus-4.6");
+  assert.throws(() => opencodeModelIdSchema.parse("x-ai/grok-4"));
 });
 
 test("mapPersistedChatMessageRow restores success and error payloads from serialized JSON", () => {
@@ -97,7 +135,8 @@ test("chat request and response schemas parse persisted chat API contracts", () 
     question: "Summarize the latest sync",
     engine: "opencode",
     folder: "notes",
-    model: "openai/gpt-5"
+    model: "openai/gpt-5.5",
+    openAiRoute: "openrouter"
   });
 
   const response = chatAskResponseSchema.parse({
@@ -109,13 +148,16 @@ test("chat request and response schemas parse persisted chat API contracts", () 
       updatedAt: "2026-04-20T12:00:05.000Z",
       engine: "opencode",
       folder: "notes",
-      model: "openai/gpt-5",
+      model: "openai/gpt-5.5",
+      openAiRoute: "openrouter",
       messages: []
     }
   });
 
   assert.equal(request.engine, "opencode");
+  assert.equal(request.openAiRoute, "openrouter");
   assert.equal(response.thread.folder, "notes");
+  assert.equal(response.thread.openAiRoute, "openrouter");
 });
 
 test("chat thread list schema includes the authenticated user identity", () => {

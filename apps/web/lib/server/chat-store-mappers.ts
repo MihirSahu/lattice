@@ -1,4 +1,5 @@
 import {
+  OPENCODE_MODEL_IDS,
   chatThreadDetailSchema,
   chatThreadSummarySchema,
   persistedChatMessageSchema,
@@ -9,12 +10,19 @@ import {
   type PersistedChatMessage
 } from "../schemas.ts";
 
+const LEGACY_MODEL_UPGRADES: Record<string, string> = {
+  "openai/gpt-5": "openai/gpt-5.5"
+};
+
+const supportedModelIds = new Set<string>(OPENCODE_MODEL_IDS);
+
 export type ChatThreadRow = {
   id: string;
   title: string;
   engine: string;
   folder: string;
   model: string | null;
+  openAiRoute?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -39,8 +47,24 @@ function parseJsonValue<T>(value: string | null): T | null {
   return JSON.parse(value) as T;
 }
 
+function normalizePersistedModel(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const upgradedValue = LEGACY_MODEL_UPGRADES[value] ?? value;
+
+  return supportedModelIds.has(upgradedValue) ? upgradedValue : null;
+}
+
 export function mapThreadSummaryRow(row: ChatThreadRow): ChatThreadSummary {
-  return chatThreadSummarySchema.parse(row);
+  const model = normalizePersistedModel(row.model);
+
+  return chatThreadSummarySchema.parse({
+    ...row,
+    model,
+    openAiRoute: model?.startsWith("openai/") ? row.openAiRoute ?? "subscription" : null
+  });
 }
 
 export function mapPersistedChatMessageRow(row: ChatMessageRow): PersistedChatMessage {

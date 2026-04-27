@@ -23,30 +23,33 @@ import {
 } from "@/lib/chat-hooks";
 import {
   FALLBACK_OPENCODE_MODEL,
+  createPendingAssistantStreamState,
   createDraftThreadSettings,
   DEFAULT_THREAD_TITLE,
+  isLegacyDefaultOpencodeModel,
+  isOpenAiOpencodeModel,
   loadLocalChatCache,
   loadLocalChatUiState,
+  normalizeOpenAiRoute,
+  normalizeOpencodeModel,
   saveLocalChatCache,
   saveLocalChatUiState,
   toDisplayMessages,
-  type PendingAskOverlay
+  type PendingAskOverlay,
+  type ResolvedAssistantStreams
 } from "@/lib/chat-local-state";
 import {
-  OPENCODE_MODEL_IDS,
+  type ActiveToolState,
   type ChatThreadDetail,
   type ChatThreadSummary,
   type DraftThreadSettings,
-  type OpencodeModelId
+  type OpencodeOpenAiRoute,
+  type OpencodeModelId,
+  type PendingAssistantStreamState,
+  type ReasoningTraceEntry,
+  type TraceFileReference
 } from "@/lib/schemas";
-
-function isSupportedOpencodeModel(value: unknown): value is OpencodeModelId {
-  return typeof value === "string" && OPENCODE_MODEL_IDS.includes(value as OpencodeModelId);
-}
-
-function normalizeOpencodeModel(value: unknown, fallback: OpencodeModelId) {
-  return isSupportedOpencodeModel(value) ? value : fallback;
-}
+import type { OpenCodeTraceEvent } from "@/lib/chat-stream";
 
 function toThreadSummary(thread: ChatThreadDetail): ChatThreadSummary {
   return {
@@ -56,8 +59,13 @@ function toThreadSummary(thread: ChatThreadDetail): ChatThreadSummary {
     updatedAt: thread.updatedAt,
     engine: thread.engine,
     folder: thread.folder,
-    model: thread.model ?? null
+    model: thread.model ?? null,
+    openAiRoute: thread.openAiRoute ?? null
   };
+}
+
+function getLastAssistantMessageId(thread: ChatThreadDetail) {
+  return [...thread.messages].reverse().find((message) => message.role === "assistant")?.id ?? null;
 }
 
 function upsertThreadSummary(summaries: ChatThreadSummary[] | undefined, nextSummary: ChatThreadSummary) {
@@ -90,9 +98,112 @@ function getUnauthorizedError(error: unknown) {
   return error instanceof HttpError && error.status === 401 ? error : null;
 }
 
+function getTraceEntryLabel(event: OpenCodeTraceEvent) {
+  if (event.type === "status" || event.type === "thinking") {
+    return event.message;
+  }
+
+  if (event.type === "session") {
+    return `Session started: ${event.model}`;
+  }
+
+  if (event.type === "tool_start" || event.type === "tool_finish" || event.type === "tool_error") {
+    return event.label;
+  }
+
+  if (event.type === "tool_progress") {
+    return event.message;
+  }
+
+  if (event.type === "file_access") {
+    return event.label;
+  }
+
+  return "";
+}
+
+function appendTraceEntry(stream: PendingAssistantStreamState, event: Exclude<OpenCodeTraceEvent, { type: "reasoning_delta" }>): PendingAssistantStreamState {
+  const label = getTraceEntryLabel(event);
+  const entry: ReasoningTraceEntry = {
+    id: `${Date.now()}-${stream.entries.length}`,
+    type: event.type,
+    label,
+    createdAt: new Date().toISOString(),
+    toolName: "toolName" in event ? event.toolName : undefined,
+    toolUseId: "toolUseId" in event ? event.toolUseId : undefined,
+    status: event.status,
+    inputSummary: event.inputSummary,
+    outputSummary: event.outputSummary,
+    elapsedMs: event.elapsedMs,
+    files: event.files,
+    tokens: event.tokens,
+    cost: event.cost,
+    error: event.error
+  };
+
+  return {
+    ...stream,
+    entries: [...stream.entries, entry].slice(-80)
+  };
+}
+
+function mergeTraceFiles(currentFiles: TraceFileReference[], nextFiles: TraceFileReference[] | undefined) {
+  if (!nextFiles?.length) {
+    return currentFiles;
+  }
+
+  const byKey = new Map<string, TraceFileReference>();
+
+  for (const file of [...currentFiles, ...nextFiles]) {
+    byKey.set(`${file.operation}:${file.path}:${file.lineStart ?? ""}:${file.lineEnd ?? ""}`, file);
+  }
+
+  return Array.from(byKey.values()).slice(-40);
+}
+
+function applyStreamEventToState(stream: PendingAssistantStreamState, event: OpenCodeTraceEvent): PendingAssistantStreamState {
+  if (event.type === "reasoning_delta") {
+    return {
+      ...stream,
+      reasoningText: `${stream.reasoningText}${event.text}`
+    };
+  }
+
+  let nextStream = appendTraceEntry(stream, event);
+
+  if (event.type === "tool_start") {
+    const activeTool: ActiveToolState = {
+      toolName: event.toolName,
+      toolUseId: event.toolUseId,
+      label: event.label,
+      startedAt: new Date().toISOString(),
+      inputSummary: event.inputSummary,
+      files: event.files
+    };
+    nextStream = {
+      ...nextStream,
+      activeTool
+    };
+  }
+
+  if (event.type === "tool_finish" || event.type === "tool_error") {
+    nextStream = {
+      ...nextStream,
+      activeTool: nextStream.activeTool?.toolUseId === event.toolUseId ? null : nextStream.activeTool,
+      error: event.type === "tool_error" ? event.label : nextStream.error
+    };
+  }
+
+  return {
+    ...nextStream,
+    files: mergeTraceFiles(nextStream.files, event.files)
+  };
+}
+
 export function QaWorkbench() {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const hydratedUserEmailRef = useRef<string | null>(null);
+  const pendingStreamRef = useRef<PendingAssistantStreamState | null>(null);
   const queryClient = useQueryClient();
   const [authenticatedUserEmail, setAuthenticatedUserEmail] = useState<string | null>(null);
   const [draftQuestion, setDraftQuestion] = useState("");
@@ -102,8 +213,11 @@ export function QaWorkbench() {
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [draftThreadSettings, setDraftThreadSettings] = useState<DraftThreadSettings>(createDraftThreadSettings());
   const [pendingAsk, setPendingAsk] = useState<PendingAskOverlay | null>(null);
+  const [resolvedStreams, setResolvedStreams] = useState<ResolvedAssistantStreams>({});
   const [navVisible, setNavVisible] = useState(true);
   const [requestError, setRequestError] = useState<string | null>(null);
+  const [explicitLegacyDraftModel, setExplicitLegacyDraftModel] = useState(false);
+  const [explicitLegacyThreadModels, setExplicitLegacyThreadModels] = useState<Set<string>>(() => new Set());
 
   const sourceFoldersQuery = useSourceFoldersQuery();
   const opencodeModelsQuery = useOpencodeModelsQuery();
@@ -129,9 +243,12 @@ export function QaWorkbench() {
   useEffect(() => {
     setDraftThreadSettings((current) => ({
       ...current,
-      model: normalizeOpencodeModel(current.model, defaultOpencodeModel)
+      model: normalizeOpencodeModel(current.model, defaultOpencodeModel, {
+        upgradeLegacyDefault: !explicitLegacyDraftModel
+      }),
+      openAiRoute: normalizeOpenAiRoute(current.openAiRoute, current.model)
     }));
-  }, [defaultOpencodeModel]);
+  }, [defaultOpencodeModel, explicitLegacyDraftModel]);
 
   useEffect(() => {
     if (!liveUserEmail) {
@@ -156,8 +273,11 @@ export function QaWorkbench() {
     setSelectedThreadId(savedUiState.selectedThreadId);
     setDraftQuestion(savedUiState.draftQuestion);
     setDraftThreadSettings(savedUiState.draftThreadSettings);
+    setExplicitLegacyDraftModel(false);
+    setExplicitLegacyThreadModels(new Set());
     setSidebarCollapsed(savedUiState.sidebarCollapsed);
     setPendingAsk(null);
+    pendingStreamRef.current = null;
     setRequestError(null);
     hydratedUserEmailRef.current = authenticatedUserEmail;
   }, [authenticatedUserEmail, defaultOpencodeModel, queryClient]);
@@ -226,8 +346,14 @@ export function QaWorkbench() {
 
   const selectedEngine = activeThread?.engine ?? draftThreadSettings.engine;
   const selectedFolder = activeThread?.folder ?? draftThreadSettings.folder;
-  const selectedModel = normalizeOpencodeModel(activeThread?.model ?? draftThreadSettings.model, defaultOpencodeModel);
-  const visibleMessages = toDisplayMessages(activeThread?.messages ?? [], getPendingOverlayForThread(selectedThreadId, pendingAsk));
+  const selectedModel = normalizeOpencodeModel(activeThread?.model ?? draftThreadSettings.model, defaultOpencodeModel, {
+    upgradeLegacyDefault: activeThread ? !explicitLegacyThreadModels.has(activeThread.id) : !explicitLegacyDraftModel
+  });
+  const selectedOpenAiRoute = normalizeOpenAiRoute(
+    activeThread?.openAiRoute ?? draftThreadSettings.openAiRoute,
+    selectedModel
+  );
+  const visibleMessages = toDisplayMessages(activeThread?.messages ?? [], getPendingOverlayForThread(selectedThreadId, pendingAsk), resolvedStreams);
   const isChatMode = visibleMessages.length > 0;
   const unauthorizedQueryError = getUnauthorizedError(threadSummariesQuery.error) ?? getUnauthorizedError(threadDetailQuery.error);
   const offlineCachedHistory =
@@ -330,6 +456,8 @@ export function QaWorkbench() {
     setSelectedThreadId(null);
     setDraftQuestion("");
     setNavVisible(true);
+    pendingStreamRef.current = null;
+    setExplicitLegacyDraftModel(false);
     setRequestError(null);
   }
 
@@ -341,6 +469,7 @@ export function QaWorkbench() {
     setSelectedThreadId(threadId);
     setDraftQuestion("");
     setNavVisible(true);
+    pendingStreamRef.current = null;
     setRequestError(null);
   }
 
@@ -362,17 +491,35 @@ export function QaWorkbench() {
     engine?: "qmd" | "opencode";
     folder?: string;
     model?: OpencodeModelId | null;
+    openAiRoute?: OpencodeOpenAiRoute | null;
   }) {
     if (!activeThread || interactionDisabled) {
       return;
     }
 
     setRequestError(null);
+    const nextModel = patch.model === undefined ? activeThread.model : patch.model;
+    const normalizedPatch = {
+      ...patch,
+      ...(activeThread.engine === "opencode" &&
+      patch.model === undefined &&
+      !explicitLegacyThreadModels.has(activeThread.id) &&
+      isLegacyDefaultOpencodeModel(activeThread.model)
+        ? {
+            model: defaultOpencodeModel
+          }
+        : {}),
+      ...(patch.openAiRoute === undefined && isOpenAiOpencodeModel(nextModel)
+        ? {
+            openAiRoute: selectedOpenAiRoute
+          }
+        : {})
+    };
 
     updateThreadSettingsMutation.mutate(
       {
         threadId: activeThread.id,
-        ...patch
+        ...normalizedPatch
       },
       {
         onSuccess: (thread) => {
@@ -391,6 +538,7 @@ export function QaWorkbench() {
                   engine: thread.engine,
                   folder: thread.folder,
                   model: thread.model ?? null,
+                  openAiRoute: thread.openAiRoute ?? null,
                   title: thread.title,
                   updatedAt: thread.updatedAt
                 }
@@ -408,7 +556,8 @@ export function QaWorkbench() {
     if (activeThread) {
       handleThreadSettingsPatch({
         engine: value,
-        model: value === "opencode" ? selectedModel : null
+        model: value === "opencode" ? selectedModel : null,
+        openAiRoute: value === "opencode" && isOpenAiOpencodeModel(selectedModel) ? selectedOpenAiRoute : null
       });
       return;
     }
@@ -416,21 +565,60 @@ export function QaWorkbench() {
     setDraftThreadSettings((current) => ({
       ...current,
       engine: value,
-      model: value === "opencode" ? normalizeOpencodeModel(current.model, defaultOpencodeModel) : current.model
+      model:
+        value === "opencode"
+          ? normalizeOpencodeModel(current.model, defaultOpencodeModel, {
+              upgradeLegacyDefault: !explicitLegacyDraftModel
+            })
+          : current.model
     }));
   }
 
   function handleModelChange(value: OpencodeModelId) {
+    const nextOpenAiRoute = isOpenAiOpencodeModel(value) ? selectedOpenAiRoute : null;
+
+    if (activeThread) {
+      setExplicitLegacyThreadModels((current) => {
+        const next = new Set(current);
+
+        if (isLegacyDefaultOpencodeModel(value)) {
+          next.add(activeThread.id);
+        } else {
+          next.delete(activeThread.id);
+        }
+
+        return next;
+      });
+      handleThreadSettingsPatch({
+        model: value,
+        openAiRoute: nextOpenAiRoute
+      });
+      return;
+    }
+
+    setExplicitLegacyDraftModel(isLegacyDefaultOpencodeModel(value));
+    setDraftThreadSettings((current) => ({
+      ...current,
+      model: value,
+      openAiRoute: isOpenAiOpencodeModel(value) ? normalizeOpenAiRoute(current.openAiRoute, value) : current.openAiRoute
+    }));
+  }
+
+  function handleOpenAiRouteChange(value: OpencodeOpenAiRoute) {
+    if (!isOpenAiOpencodeModel(selectedModel)) {
+      return;
+    }
+
     if (activeThread) {
       handleThreadSettingsPatch({
-        model: value
+        openAiRoute: value
       });
       return;
     }
 
     setDraftThreadSettings((current) => ({
       ...current,
-      model: value
+      openAiRoute: value
     }));
   }
 
@@ -465,11 +653,13 @@ export function QaWorkbench() {
     const overlay = {
       threadId: activeThread?.id ?? null,
       question: submittedQuestion,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      stream: createPendingAssistantStreamState()
     } satisfies PendingAskOverlay;
 
     setRequestError(null);
     setDraftQuestion("");
+    pendingStreamRef.current = overlay.stream;
     setPendingAsk(overlay);
     setNavVisible(true);
 
@@ -479,16 +669,49 @@ export function QaWorkbench() {
         question: submittedQuestion,
         engine: selectedEngine,
         folder: selectedFolder || undefined,
-        model: selectedEngine === "opencode" ? selectedModel : undefined
+        model: selectedEngine === "opencode" ? selectedModel : undefined,
+        openAiRoute: selectedEngine === "opencode" && isOpenAiOpencodeModel(selectedModel) ? selectedOpenAiRoute : undefined,
+        onStreamEvent: (event) => {
+          setPendingAsk((current) => {
+            if (!current || current.createdAt !== overlay.createdAt) {
+              return current;
+            }
+
+            const nextStream = applyStreamEventToState(current.stream, event);
+            pendingStreamRef.current = nextStream;
+
+            return {
+              ...current,
+              stream: nextStream
+            };
+          });
+        }
       },
       {
         onSuccess: (response) => {
+          const finalStream = pendingStreamRef.current
+            ? {
+                ...pendingStreamRef.current,
+                activeTool: null
+              }
+            : null;
+          const assistantMessageId = getLastAssistantMessageId(response.thread);
+
+          if (finalStream && assistantMessageId) {
+            setResolvedStreams((current) => ({
+              ...current,
+              [assistantMessageId]: finalStream
+            }));
+          }
+
+          pendingStreamRef.current = null;
           setPendingAsk(null);
           setSelectedThreadId(response.thread.id);
           applyThreadCaches(response.thread);
           void queryClient.invalidateQueries({ queryKey: chatQueryKeys.threadSummaries });
         },
         onError: (error) => {
+          pendingStreamRef.current = null;
           setPendingAsk(null);
           setDraftQuestion(submittedQuestion);
 
@@ -530,6 +753,8 @@ export function QaWorkbench() {
       onEngineChange={handleEngineChange}
       selectedModel={selectedModel}
       onModelChange={handleModelChange}
+      selectedOpenAiRoute={selectedOpenAiRoute}
+      onOpenAiRouteChange={handleOpenAiRouteChange}
       mobileSettingsOpen={mobileSettingsOpen}
       onMobileSettingsOpenChange={setMobileSettingsOpen}
       selectedFolder={selectedFolder}

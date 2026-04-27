@@ -11,6 +11,7 @@ export async function POST(request: Request) {
       folder: parsed.folder,
       engine: parsed.engine ?? "qmd",
       model: parsed.model,
+      openAiRoute: parsed.openAiRoute,
       limit: parsed.limit
     });
 

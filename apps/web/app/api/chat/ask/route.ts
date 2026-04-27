@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { encodeNdjsonEvent } from "@/lib/ndjson";
 import { chatAskRequestSchema } from "@/lib/schemas";
 import { type AppendQuestionAndAnswerInput, ChatThreadNotFoundError, getChatStore } from "@/lib/server/chat-store";
 import { executeQueryEngineRequest } from "@/lib/server/query-engine";
@@ -31,22 +32,60 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const parsed = chatAskRequestSchema.parse(body);
-    const result = await executeQueryEngineRequest(parsed);
-    const thread = await appendChatTurnWithStaleThreadRecovery({
-      threadId: parsed.threadId,
-      userEmail: identity.userEmail,
-      question: parsed.question,
-      engine: parsed.engine,
-      folder: parsed.folder,
-      model: parsed.model,
-      successResponse: result.ok ? result.response : undefined,
-      errorResponse: result.ok ? undefined : result.error
+
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        const writeEvent = (event: unknown) => {
+          controller.enqueue(encoder.encode(encodeNdjsonEvent(event)));
+        };
+
+        void (async () => {
+          try {
+            const result = await executeQueryEngineRequest(parsed, {
+              onEvent: (event) => {
+                writeEvent(event);
+              }
+            });
+            const thread = await appendChatTurnWithStaleThreadRecovery({
+              threadId: parsed.threadId,
+              userEmail: identity.userEmail,
+              question: parsed.question,
+              engine: parsed.engine,
+              folder: parsed.folder,
+              model: parsed.model,
+              openAiRoute: parsed.openAiRoute,
+              successResponse: result.ok ? result.response : undefined,
+              errorResponse: result.ok ? undefined : result.error
+            });
+
+            writeEvent({
+              type: "final",
+              response: {
+                ok: result.ok,
+                thread,
+                error: result.ok ? undefined : result.error
+              }
+            });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : "Unable to persist chat turn.";
+            writeEvent({
+              type: "error",
+              message
+            });
+          } finally {
+            controller.close();
+          }
+        })();
+      }
     });
 
-    return NextResponse.json({
-      ok: result.ok,
-      thread,
-      error: result.ok ? undefined : result.error
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "application/x-ndjson; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive"
+      }
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to persist chat turn.";
