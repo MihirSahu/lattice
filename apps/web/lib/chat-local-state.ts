@@ -34,16 +34,6 @@ export type PendingAskOverlay = {
   stream: PendingAssistantStreamState;
 };
 
-export function createPendingAssistantStreamState(): PendingAssistantStreamState {
-  return {
-    entries: [],
-    activeTool: null,
-    reasoningText: "",
-    files: [],
-    error: null
-  };
-}
-
 export type ResolvedAssistantStreams = Record<string, PendingAssistantStreamState>;
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -236,7 +226,7 @@ function createDisplayAssistantMessage(message: PersistedChatMessage, resolvedSt
     role: "assistant",
     createdAt: message.createdAt,
     response: message.response ?? undefined,
-    stream: resolvedStreams[message.id] ?? null,
+    stream: message.stream ?? resolvedStreams[message.id] ?? null,
     error: message.errorText ?? null,
     errorDetails: message.errorDetails ?? null,
     errorCode: message.errorCode ?? null

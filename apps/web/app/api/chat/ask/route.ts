@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server";
+import {
+  applyStreamEventToState,
+  createPendingAssistantStreamState,
+  finalizeAssistantStreamState
+} from "@/lib/chat-trace";
 import { encodeNdjsonEvent } from "@/lib/ndjson";
 import { chatAskRequestSchema } from "@/lib/schemas";
 import { type AppendQuestionAndAnswerInput, ChatThreadNotFoundError, getChatStore } from "@/lib/server/chat-store";
@@ -42,8 +47,10 @@ export async function POST(request: Request) {
 
         void (async () => {
           try {
+            let assistantStream = createPendingAssistantStreamState();
             const result = await executeQueryEngineRequest(parsed, {
               onEvent: (event) => {
+                assistantStream = applyStreamEventToState(assistantStream, event);
                 writeEvent(event);
               }
             });
@@ -56,7 +63,8 @@ export async function POST(request: Request) {
               model: parsed.model,
               openAiRoute: parsed.openAiRoute,
               successResponse: result.ok ? result.response : undefined,
-              errorResponse: result.ok ? undefined : result.error
+              errorResponse: result.ok ? undefined : result.error,
+              assistantStream: finalizeAssistantStreamState(assistantStream)
             });
 
             writeEvent({

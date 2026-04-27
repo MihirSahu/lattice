@@ -116,6 +116,58 @@ export const opencodeModelsResponseSchema = z.object({
   models: z.array(opencodeModelOptionSchema).min(1)
 });
 
+export const traceFileOperationSchema = z.enum(["read", "search", "list", "write", "command", "unknown"]);
+
+export const traceFileReferenceSchema = z.object({
+  path: z.string(),
+  operation: traceFileOperationSchema,
+  lineStart: z.number().int().optional(),
+  lineEnd: z.number().int().optional(),
+  source: z.string().optional()
+});
+
+export const traceTokenUsageSchema = z.object({
+  input: z.number(),
+  output: z.number(),
+  reasoning: z.number(),
+  cacheRead: z.number(),
+  cacheWrite: z.number()
+});
+
+export const reasoningTraceEntrySchema = z.object({
+  id: z.string(),
+  type: z.enum(["status", "session", "thinking", "tool_start", "tool_progress", "tool_finish", "tool_error", "file_access"]),
+  label: z.string(),
+  createdAt: z.string().datetime(),
+  toolName: z.string().optional(),
+  toolUseId: z.string().optional(),
+  status: z.string().optional(),
+  inputSummary: z.string().optional(),
+  outputSummary: z.string().optional(),
+  elapsedMs: z.number().optional(),
+  files: z.array(traceFileReferenceSchema).optional(),
+  tokens: traceTokenUsageSchema.optional(),
+  cost: z.number().optional(),
+  error: z.string().optional()
+});
+
+export const activeToolStateSchema = z.object({
+  toolName: z.string(),
+  toolUseId: z.string(),
+  label: z.string(),
+  startedAt: z.string().datetime(),
+  inputSummary: z.string().optional(),
+  files: z.array(traceFileReferenceSchema).optional()
+});
+
+export const pendingAssistantStreamStateSchema = z.object({
+  entries: z.array(reasoningTraceEntrySchema),
+  activeTool: activeToolStateSchema.nullable(),
+  reasoningText: z.string(),
+  files: z.array(traceFileReferenceSchema),
+  error: z.string().nullable()
+});
+
 export const persistedChatMessageSchema = z.object({
   id: z.string().uuid(),
   role: chatRoleSchema,
@@ -123,6 +175,7 @@ export const persistedChatMessageSchema = z.object({
   createdAt: z.string().datetime(),
   question: z.string().nullable().optional(),
   response: askResponseSchema.nullable().optional(),
+  stream: pendingAssistantStreamStateSchema.nullable().optional(),
   errorText: z.string().nullable().optional(),
   errorDetails: z.array(z.string()).nullable().optional(),
   errorCode: z.string().nullable().optional()
@@ -200,6 +253,12 @@ export type ChatThreadDetail = z.infer<typeof chatThreadDetailSchema>;
 export type ChatAskRequest = z.infer<typeof chatAskRequestSchema>;
 export type ChatAskResponse = z.infer<typeof chatAskResponseSchema>;
 export type ChatThreadsResponse = z.infer<typeof chatThreadsResponseSchema>;
+export type ReasoningTraceEntry = z.infer<typeof reasoningTraceEntrySchema>;
+export type ActiveToolState = z.infer<typeof activeToolStateSchema>;
+export type PendingAssistantStreamState = z.infer<typeof pendingAssistantStreamStateSchema>;
+export type TraceFileOperation = z.infer<typeof traceFileOperationSchema>;
+export type TraceFileReference = z.infer<typeof traceFileReferenceSchema>;
+export type TraceTokenUsage = z.infer<typeof traceTokenUsageSchema>;
 
 export type ChatMessage = {
   id: string;
@@ -212,58 +271,6 @@ export type ChatMessage = {
   error?: string | null;
   errorDetails?: string[] | null;
   errorCode?: string | null;
-};
-
-export type ReasoningTraceEntry = {
-  id: string;
-  type: "status" | "session" | "thinking" | "tool_start" | "tool_progress" | "tool_finish" | "tool_error" | "file_access";
-  label: string;
-  createdAt: string;
-  toolName?: string;
-  toolUseId?: string;
-  status?: string;
-  inputSummary?: string;
-  outputSummary?: string;
-  elapsedMs?: number;
-  files?: TraceFileReference[];
-  tokens?: TraceTokenUsage;
-  cost?: number;
-  error?: string;
-};
-
-export type ActiveToolState = {
-  toolName: string;
-  toolUseId: string;
-  label: string;
-  startedAt: string;
-  inputSummary?: string;
-  files?: TraceFileReference[];
-};
-
-export type PendingAssistantStreamState = {
-  entries: ReasoningTraceEntry[];
-  activeTool: ActiveToolState | null;
-  reasoningText: string;
-  files: TraceFileReference[];
-  error: string | null;
-};
-
-export type TraceFileOperation = "read" | "search" | "list" | "write" | "command" | "unknown";
-
-export type TraceFileReference = {
-  path: string;
-  operation: TraceFileOperation;
-  lineStart?: number;
-  lineEnd?: number;
-  source?: string;
-};
-
-export type TraceTokenUsage = {
-  input: number;
-  output: number;
-  reasoning: number;
-  cacheRead: number;
-  cacheWrite: number;
 };
 
 export type DraftThreadSettings = {

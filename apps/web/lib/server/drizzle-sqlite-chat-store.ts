@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq } from "drizzle-orm";
+import { hasAssistantStreamContent } from "@/lib/chat-trace";
 import type { AppendQuestionAndAnswerInput, ChatStore, UpsertThreadSettingsInput } from "@/lib/server/chat-store";
 import { ChatThreadNotFoundError } from "@/lib/server/chat-store";
-import { mapPersistedChatMessageRow, mapThreadSummaryRow } from "@/lib/server/chat-store-mappers";
+import { mapThreadDetail, mapThreadSummaryRow, type ChatMessageRow, type ChatMessageTraceRow } from "@/lib/server/chat-store-mappers";
 import { getChatDatabase } from "@/lib/server/db/client";
 import { ensureChatDbMigrated } from "@/lib/server/db/migrate";
-import { chatMessages, chatThreads } from "@/lib/server/db/schema";
+import { chatMessageTraces, chatMessages, chatThreads } from "@/lib/server/db/schema";
 import type { ChatThreadDetail, ChatThreadSummary } from "@/lib/schemas";
 
 type DrizzleSqliteChatStoreConfig = {
@@ -56,16 +57,24 @@ export class DrizzleSqliteChatStore implements ChatStore {
       return null;
     }
 
-    const messageRows = await db
+    const messageRows = (await db
       .select()
       .from(chatMessages)
       .where(eq(chatMessages.threadId, threadId))
-      .orderBy(asc(chatMessages.createdAt));
+      .orderBy(asc(chatMessages.createdAt))) as ChatMessageRow[];
 
-    return {
-      ...mapThreadSummaryRow(threadRow),
-      messages: messageRows.map(mapPersistedChatMessageRow)
-    };
+    const messageIds = messageRows.map((row) => row.id);
+    const traceRows: ChatMessageTraceRow[] = messageIds.length
+      ? (
+          await Promise.all(
+            messageIds.map((messageId) =>
+              db.select().from(chatMessageTraces).where(eq(chatMessageTraces.messageId, messageId)).get()
+            )
+          )
+        ).filter((row): row is NonNullable<typeof row> => Boolean(row))
+      : [];
+
+    return mapThreadDetail(threadRow, messageRows, traceRows);
   }
 
   async upsertThreadSettings(input: UpsertThreadSettingsInput): Promise<ChatThreadSummary | null> {
@@ -158,10 +167,12 @@ export class DrizzleSqliteChatStore implements ChatStore {
       });
 
       const assistantTimestamp = new Date().toISOString();
+      let assistantMessageId: string | null = null;
 
       if (input.successResponse) {
+        assistantMessageId = randomUUID();
         await db.insert(chatMessages).values({
-          id: randomUUID(),
+          id: assistantMessageId,
           threadId: nextThreadId,
           role: "assistant",
           status: "complete",
@@ -171,8 +182,9 @@ export class DrizzleSqliteChatStore implements ChatStore {
       }
 
       if (input.errorResponse) {
+        assistantMessageId = randomUUID();
         await db.insert(chatMessages).values({
-          id: randomUUID(),
+          id: assistantMessageId,
           threadId: nextThreadId,
           role: "assistant",
           status: "error",
@@ -180,6 +192,15 @@ export class DrizzleSqliteChatStore implements ChatStore {
           errorText: input.errorResponse.error,
           errorDetailsJson: JSON.stringify(input.errorResponse),
           errorCode: input.errorResponse.code ?? null
+        });
+      }
+
+      if (assistantMessageId && hasAssistantStreamContent(input.assistantStream)) {
+        await db.insert(chatMessageTraces).values({
+          messageId: assistantMessageId,
+          streamJson: JSON.stringify(input.assistantStream),
+          createdAt: assistantTimestamp,
+          updatedAt: assistantTimestamp
         });
       }
 

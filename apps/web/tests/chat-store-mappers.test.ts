@@ -100,6 +100,83 @@ test("mapPersistedChatMessageRow restores success and error payloads from serial
   assert.equal(errorMessage.errorCode, "TIMEOUT");
 });
 
+test("mapPersistedChatMessageRow hydrates persisted assistant stream traces", () => {
+  const messageId = "53ad4a54-4c2c-46fe-8c16-a75060c7bf48";
+  const message = mapPersistedChatMessageRow(
+    {
+      id: messageId,
+      role: "assistant",
+      status: "complete",
+      createdAt: "2026-04-20T12:00:10.000Z",
+      question: null,
+      responseJson: JSON.stringify({
+        ok: true,
+        backend: "opencode",
+        mode: "agent",
+        question: "What changed?",
+        answer: "The answer.",
+        sources: []
+      }),
+      errorText: null,
+      errorDetailsJson: null,
+      errorCode: null
+    },
+    {
+      messageId,
+      streamJson: JSON.stringify({
+        entries: [
+          {
+            id: "trace-1",
+            type: "status",
+            label: "OpenCode is working...",
+            createdAt: "2026-04-20T12:00:09.000Z"
+          }
+        ],
+        activeTool: null,
+        reasoningText: "Inspected notes/day.md",
+        files: [{ path: "notes/day.md", operation: "read" }],
+        error: null
+      }),
+      createdAt: "2026-04-20T12:00:10.000Z",
+      updatedAt: "2026-04-20T12:00:10.000Z"
+    }
+  );
+
+  assert.equal(message.stream?.reasoningText, "Inspected notes/day.md");
+  assert.equal(message.stream?.files[0]?.path, "notes/day.md");
+});
+
+test("mapPersistedChatMessageRow ignores invalid assistant stream JSON", () => {
+  const message = mapPersistedChatMessageRow(
+    {
+      id: "53ad4a54-4c2c-46fe-8c16-a75060c7bf48",
+      role: "assistant",
+      status: "complete",
+      createdAt: "2026-04-20T12:00:10.000Z",
+      question: null,
+      responseJson: JSON.stringify({
+        ok: true,
+        backend: "opencode",
+        mode: "agent",
+        question: "What changed?",
+        answer: "The answer.",
+        sources: []
+      }),
+      errorText: null,
+      errorDetailsJson: null,
+      errorCode: null
+    },
+    {
+      messageId: "53ad4a54-4c2c-46fe-8c16-a75060c7bf48",
+      streamJson: JSON.stringify({ reasoningText: "missing required fields" }),
+      createdAt: "2026-04-20T12:00:10.000Z",
+      updatedAt: "2026-04-20T12:00:10.000Z"
+    }
+  );
+
+  assert.equal(message.stream, null);
+});
+
 test("mapThreadDetail composes ordered messages into the full thread payload", () => {
   const detail = mapThreadDetail(
     {
@@ -128,6 +205,95 @@ test("mapThreadDetail composes ordered messages into the full thread payload", (
 
   assert.equal(detail.messages.length, 1);
   assert.equal(detail.messages[0]?.question, "What changed?");
+});
+
+test("mapThreadDetail attaches matching trace rows to assistant messages", () => {
+  const assistantId = "e60a6b27-fd59-4f37-9b0c-6ed405c8f6d3";
+  const detail = mapThreadDetail(
+    {
+      id: "d43ddc7d-80b0-472a-9608-2d5bdfdce47f",
+      title: "New chat",
+      engine: "opencode",
+      folder: "",
+      model: "openai/gpt-5.5",
+      openAiRoute: "subscription",
+      createdAt: "2026-04-20T12:00:00.000Z",
+      updatedAt: "2026-04-20T12:00:20.000Z"
+    },
+    [
+      {
+        id: assistantId,
+        role: "assistant",
+        status: "complete",
+        createdAt: "2026-04-20T12:00:10.000Z",
+        question: null,
+        responseJson: JSON.stringify({
+          ok: true,
+          backend: "opencode",
+          mode: "agent",
+          question: "What changed?",
+          answer: "The answer.",
+          sources: []
+        }),
+        errorText: null,
+        errorDetailsJson: null,
+        errorCode: null
+      }
+    ],
+    [
+      {
+        messageId: assistantId,
+        streamJson: JSON.stringify({
+          entries: [],
+          activeTool: null,
+          reasoningText: "Persisted reasoning",
+          files: [],
+          error: null
+        }),
+        createdAt: "2026-04-20T12:00:10.000Z",
+        updatedAt: "2026-04-20T12:00:10.000Z"
+      }
+    ]
+  );
+
+  assert.equal(detail.messages[0]?.stream?.reasoningText, "Persisted reasoning");
+});
+
+test("mapThreadDetail treats missing trace rows as null stream state", () => {
+  const detail = mapThreadDetail(
+    {
+      id: "d43ddc7d-80b0-472a-9608-2d5bdfdce47f",
+      title: "New chat",
+      engine: "opencode",
+      folder: "",
+      model: "openai/gpt-5.5",
+      openAiRoute: "subscription",
+      createdAt: "2026-04-20T12:00:00.000Z",
+      updatedAt: "2026-04-20T12:00:20.000Z"
+    },
+    [
+      {
+        id: "e60a6b27-fd59-4f37-9b0c-6ed405c8f6d3",
+        role: "assistant",
+        status: "complete",
+        createdAt: "2026-04-20T12:00:10.000Z",
+        question: null,
+        responseJson: JSON.stringify({
+          ok: true,
+          backend: "opencode",
+          mode: "agent",
+          question: "What changed?",
+          answer: "The answer.",
+          sources: []
+        }),
+        errorText: null,
+        errorDetailsJson: null,
+        errorCode: null
+      }
+    ]
+  );
+
+  assert.equal(detail.messages[0]?.stream, null);
 });
 
 test("chat request and response schemas parse persisted chat API contracts", () => {

@@ -2,6 +2,7 @@ import {
   OPENCODE_MODEL_IDS,
   chatThreadDetailSchema,
   chatThreadSummarySchema,
+  pendingAssistantStreamStateSchema,
   persistedChatMessageSchema,
   type AskErrorResponse,
   type AskResponse,
@@ -39,12 +40,34 @@ export type ChatMessageRow = {
   errorCode: string | null;
 };
 
+export type ChatMessageTraceRow = {
+  messageId: string;
+  streamJson: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 function parseJsonValue<T>(value: string | null): T | null {
   if (!value) {
     return null;
   }
 
   return JSON.parse(value) as T;
+}
+
+function parseAssistantStream(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    const result = pendingAssistantStreamStateSchema.safeParse(parsed);
+
+    return result.success ? result.data : null;
+  } catch {
+    return null;
+  }
 }
 
 function normalizePersistedModel(value: string | null) {
@@ -67,7 +90,7 @@ export function mapThreadSummaryRow(row: ChatThreadRow): ChatThreadSummary {
   });
 }
 
-export function mapPersistedChatMessageRow(row: ChatMessageRow): PersistedChatMessage {
+export function mapPersistedChatMessageRow(row: ChatMessageRow, traceRow?: ChatMessageTraceRow): PersistedChatMessage {
   const response = parseJsonValue<AskResponse>(row.responseJson);
   const errorPayload = parseJsonValue<AskErrorResponse>(row.errorDetailsJson);
 
@@ -78,15 +101,22 @@ export function mapPersistedChatMessageRow(row: ChatMessageRow): PersistedChatMe
     createdAt: row.createdAt,
     question: row.question,
     response,
+    stream: parseAssistantStream(traceRow?.streamJson),
     errorText: row.errorText,
     errorDetails: errorPayload?.details ?? null,
     errorCode: row.errorCode
   });
 }
 
-export function mapThreadDetail(threadRow: ChatThreadRow, messageRows: ChatMessageRow[]): ChatThreadDetail {
+export function mapThreadDetail(
+  threadRow: ChatThreadRow,
+  messageRows: ChatMessageRow[],
+  traceRows: ChatMessageTraceRow[] = []
+): ChatThreadDetail {
+  const traceByMessageId = new Map(traceRows.map((row) => [row.messageId, row]));
+
   return chatThreadDetailSchema.parse({
     ...mapThreadSummaryRow(threadRow),
-    messages: messageRows.map(mapPersistedChatMessageRow)
+    messages: messageRows.map((row) => mapPersistedChatMessageRow(row, traceByMessageId.get(row.id)))
   });
 }
