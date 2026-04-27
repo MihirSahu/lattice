@@ -89,6 +89,7 @@ export class DrizzleSqliteChatStore implements ChatStore {
         engine: input.engine ?? existingThread.engine,
         folder: input.folder ?? existingThread.folder,
         model: input.model !== undefined ? input.model : existingThread.model,
+        openAiRoute: input.openAiRoute !== undefined ? input.openAiRoute : existingThread.openAiRoute,
         updatedAt: new Date().toISOString()
       })
       .where(and(eq(chatThreads.id, input.threadId), eq(chatThreads.userEmail, input.userEmail)));
@@ -129,6 +130,7 @@ export class DrizzleSqliteChatStore implements ChatStore {
             engine: input.engine,
             folder: input.folder ?? "",
             model: input.engine === "opencode" ? input.model ?? null : null,
+            openAiRoute: input.engine === "opencode" ? input.openAiRoute ?? null : null,
             updatedAt: now
           })
           .where(and(eq(chatThreads.id, nextThreadId), eq(chatThreads.userEmail, input.userEmail)));
@@ -140,6 +142,7 @@ export class DrizzleSqliteChatStore implements ChatStore {
           engine: input.engine,
           folder: input.folder ?? "",
           model: input.engine === "opencode" ? input.model ?? null : null,
+          openAiRoute: input.engine === "opencode" ? input.openAiRoute ?? null : null,
           createdAt: now,
           updatedAt: now
         });

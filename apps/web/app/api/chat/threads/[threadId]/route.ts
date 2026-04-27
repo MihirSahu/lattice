@@ -52,7 +52,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       threadId,
       userEmail: identity.userEmail,
       ...parsed,
-      model: parsed.engine === "qmd" ? null : parsed.model
+      model: parsed.engine === "qmd" ? null : parsed.model,
+      openAiRoute: parsed.engine === "qmd" ? null : parsed.openAiRoute
     });
 
     if (!thread) {

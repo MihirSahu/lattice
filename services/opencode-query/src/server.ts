@@ -4,51 +4,37 @@ import { access } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { getModelCatalog, resolveDefaultModelId, resolveRequestedModelId } from "./model-catalog.js";
+import { hasOpenAiAuth } from "./openai-auth.js";
+import {
+  getModelCatalog,
+  resolveDefaultModelId,
+  resolveOpenAiRoute,
+  resolveOpenCodeModelSelection,
+  resolveRequestedModelId,
+  type AllowedModelId,
+  type OpenAiRoute
+} from "./model-catalog.js";
+import {
+  encodeNdjsonEvent,
+  NdjsonLineParser,
+  type OpenCodeTraceEvent,
+  type WorkerErrorResponse,
+  type WorkerResponse,
+  type WorkerStreamEvent
+} from "./stream-events.js";
 
 type QueryRequest = {
   question?: unknown;
   folder?: unknown;
   limit?: unknown;
   model?: unknown;
+  openAiRoute?: unknown;
 };
-
-type QueryWorkerResponse = {
-  ok: true;
-  question: string;
-  answer: string;
-  sources: Array<{
-    id: string;
-    title: string;
-    path: string | null;
-    snippet: string;
-    score: number | null;
-    context: string | null;
-  }>;
-};
-
-type QueryWorkerErrorCode =
-  | "opencode_timeout"
-  | "opencode_no_text_output"
-  | "provider_quota_exceeded"
-  | "provider_rate_limited"
-  | "provider_auth_error"
-  | "opencode_worker_failed";
-
-type QueryWorkerErrorResponse = {
-  ok: false;
-  error: string;
-  details?: string[];
-  code?: QueryWorkerErrorCode;
-  provider?: string;
-};
-
-type QueryWorkerOutput = QueryWorkerResponse | QueryWorkerErrorResponse;
 
 class QueryWorkerInvocationError extends Error {
-  payload: QueryWorkerErrorResponse;
+  payload: WorkerErrorResponse;
 
-  constructor(payload: QueryWorkerErrorResponse) {
+  constructor(payload: WorkerErrorResponse) {
     super(payload.error);
     this.name = "QueryWorkerInvocationError";
     this.payload = payload;
@@ -63,6 +49,37 @@ const workerPath = join(dirname(fileURLToPath(import.meta.url)), "query-worker.j
 function respond(res: ServerResponse, status: number, payload: unknown) {
   res.writeHead(status, { "content-type": "application/json; charset=utf-8" });
   res.end(JSON.stringify(payload));
+}
+
+function wantsNdjson(req: IncomingMessage) {
+  const accept = req.headers.accept;
+  const value = Array.isArray(accept) ? accept.join(",") : accept ?? "";
+
+  return value.includes("application/x-ndjson");
+}
+
+function writeNdjsonEvent(res: ServerResponse, event: unknown) {
+  res.write(encodeNdjsonEvent(event));
+}
+
+async function isProviderConfiguredForModel(model: AllowedModelId, openAiRoute?: OpenAiRoute) {
+  const selection = resolveOpenCodeModelSelection(model, openAiRoute);
+
+  if (selection.providerID === "openrouter") {
+    return Boolean(process.env.OPENROUTER_API_KEY);
+  }
+
+  return hasOpenAiAuth();
+}
+
+function missingProviderMessage(model: AllowedModelId, openAiRoute?: OpenAiRoute) {
+  const selection = resolveOpenCodeModelSelection(model, openAiRoute);
+
+  if (selection.providerID === "openrouter") {
+    return "OPENROUTER_API_KEY is not configured.";
+  }
+
+  return "OpenAI auth is not configured. Set OPENCODE_OPENAI_AUTH_FILE or OPENCODE_OPENAI_AUTH_JSON, or mount OpenCode auth.json.";
 }
 
 function previewQuestion(value: string) {
@@ -140,9 +157,10 @@ async function resolveScopeRoot(folder: unknown) {
 }
 
 function runWorker(
-  payload: { question: string; limit: number; folder: string | null; model: string; requestId: string },
-  scopeRoot: string
-): Promise<QueryWorkerResponse> {
+  payload: { question: string; limit: number; folder: string | null; model: string; openAiRoute: OpenAiRoute; requestId: string },
+  scopeRoot: string,
+  onEvent?: (event: OpenCodeTraceEvent) => void
+): Promise<WorkerResponse> {
   return new Promise((resolveResult, reject) => {
     const child = spawn(process.execPath, [workerPath], {
       cwd: scopeRoot,
@@ -153,10 +171,12 @@ function runWorker(
       stdio: ["pipe", "pipe", "pipe"]
     });
 
-    let stdout = "";
     let stderr = "";
+    let finalResult: WorkerResponse | null = null;
+    let structuredError: WorkerErrorResponse | null = null;
     let settled = false;
     let timer: NodeJS.Timeout | null = null;
+    const stdoutParser = new NdjsonLineParser<WorkerStreamEvent>();
 
     const clearTimer = () => {
       if (!timer) {
@@ -198,9 +218,37 @@ function runWorker(
       // Ignore EPIPE if the worker exits before consuming stdin.
     });
 
+    const handleWorkerEvent = (event: WorkerStreamEvent) => {
+      if (event.type === "final") {
+        finalResult = event.result;
+        return;
+      }
+
+      if (event.type === "error") {
+        structuredError = event.error;
+        return;
+      }
+
+      onEvent?.(event);
+    };
+
     child.stdout.on("data", (chunk) => {
       armTimer();
-      stdout += chunk.toString("utf8");
+
+      try {
+        for (const event of stdoutParser.push(chunk.toString("utf8"))) {
+          handleWorkerEvent(event);
+        }
+      } catch (error) {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        clearTimer();
+        child.kill("SIGKILL");
+        reject(new Error(`Failed to parse OpenCode worker stream: ${error instanceof Error ? error.message : "unknown error"}`));
+      }
     });
 
     child.stderr.on("data", (chunk) => {
@@ -229,16 +277,19 @@ function runWorker(
       clearTimer();
       console.log(`[opencode:${payload.requestId}] worker_exit code=${code ?? -1}`);
 
-      if (code !== 0) {
-        try {
-          const parsed = stdout ? (JSON.parse(stdout) as QueryWorkerOutput) : null;
+      try {
+        for (const event of stdoutParser.flush()) {
+          handleWorkerEvent(event);
+        }
+      } catch (error) {
+        reject(new Error(`Failed to parse OpenCode worker stream: ${error instanceof Error ? error.message : "unknown error"}`));
+        return;
+      }
 
-          if (parsed && !parsed.ok) {
-            reject(new QueryWorkerInvocationError(parsed));
-            return;
-          }
-        } catch {
-          // Fall through to the generic worker failure below.
+      if (code !== 0) {
+        if (structuredError) {
+          reject(new QueryWorkerInvocationError(structuredError));
+          return;
         }
 
         reject(
@@ -252,11 +303,17 @@ function runWorker(
         return;
       }
 
-      try {
-        resolveResult(JSON.parse(stdout) as QueryWorkerResponse);
-      } catch (error) {
-        reject(new Error(`Failed to parse OpenCode worker output: ${error instanceof Error ? error.message : "unknown error"}`));
+      if (structuredError) {
+        reject(new QueryWorkerInvocationError(structuredError));
+        return;
       }
+
+      if (!finalResult) {
+        reject(new Error("OpenCode worker finished without a final result."));
+        return;
+      }
+
+      resolveResult(finalResult);
     });
 
     child.stdin.end(JSON.stringify(payload));
@@ -276,8 +333,8 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url, `http://127.0.0.1:${port}`);
 
     if (req.method === "GET" && url.pathname === "/health") {
-      const providerConfigured = Boolean(process.env.OPENROUTER_API_KEY);
       const defaultModel = resolveDefaultModelId();
+      const providerConfigured = await isProviderConfiguredForModel(defaultModel);
 
       respond(res, providerConfigured ? 200 : 503, {
         ok: providerConfigured,
@@ -296,28 +353,75 @@ const server = createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && url.pathname === "/query") {
-      if (!process.env.OPENROUTER_API_KEY) {
-        respond(res, 500, { ok: false, error: "OPENROUTER_API_KEY is not configured." });
-        return;
-      }
-
       const body = await readBody(req);
       const question = typeof body.question === "string" ? body.question.trim() : "";
       const limit = typeof body.limit === "number" ? body.limit : 6;
       const selectedModel = resolveRequestedModelId(body.model);
+      const openAiRoute = resolveOpenAiRoute(body.openAiRoute);
+      const modelSelection = resolveOpenCodeModelSelection(selectedModel, openAiRoute);
+      const responseOpenAiRoute = selectedModel.startsWith("openai/") ? openAiRoute : undefined;
 
       if (!question) {
         respond(res, 400, { ok: false, error: "Question is required." });
         return;
       }
 
+      if (!(await isProviderConfiguredForModel(selectedModel, openAiRoute))) {
+        respond(res, 500, { ok: false, error: missingProviderMessage(selectedModel, openAiRoute), provider: modelSelection.providerID });
+        return;
+      }
+
       const { folder, scopeRoot } = await resolveScopeRoot(body.folder);
+      const streamResponse = wantsNdjson(req);
 
       console.log(
-        `[opencode:${requestId}] start folder=${folder ?? "<all>"} model=${selectedModel} limit=${limit} scope=${relative(vaultRoot, scopeRoot) || "."} question="${previewQuestion(question)}"`
+        `[opencode:${requestId}] start folder=${folder ?? "<all>"} model=${selectedModel} openai_route=${openAiRoute} limit=${limit} scope=${relative(vaultRoot, scopeRoot) || "."} question="${previewQuestion(question)}"`
       );
 
-      const result = await runWorker({ question, limit, folder, model: selectedModel, requestId }, scopeRoot);
+      if (streamResponse) {
+        res.writeHead(200, {
+          "content-type": "application/x-ndjson; charset=utf-8",
+          "cache-control": "no-cache, no-transform",
+          connection: "keep-alive"
+        });
+
+        try {
+          const result = await runWorker({ question, limit, folder, model: selectedModel, openAiRoute, requestId }, scopeRoot, (event) => {
+            writeNdjsonEvent(res, event);
+          });
+          const responsePayload = {
+            ...result,
+            backend: "opencode",
+            mode: "agent",
+            provider: modelSelection.providerID,
+            model: selectedModel,
+            openAiRoute: responseOpenAiRoute,
+            folder,
+            duration_ms: Date.now() - startedAt
+          };
+
+          console.log(
+            `[opencode:${requestId}] finish duration_ms=${Date.now() - startedAt} sources=${result.sources.length}`
+          );
+          writeNdjsonEvent(res, { type: "final", result: responsePayload });
+        } catch (error) {
+          if (error instanceof QueryWorkerInvocationError) {
+            console.error(
+              `[opencode:${requestId}] error duration_ms=${Date.now() - startedAt} code="${error.payload.code ?? "unknown"}" message="${error.payload.error}"`
+            );
+            writeNdjsonEvent(res, { type: "error", error: error.payload });
+          } else {
+            const message = error instanceof Error ? error.message : "Unknown error";
+            console.error(`[opencode:${requestId}] error duration_ms=${Date.now() - startedAt} message="${message}"`);
+            writeNdjsonEvent(res, { type: "error", error: { ok: false, error: message } });
+          }
+        } finally {
+          res.end();
+        }
+        return;
+      }
+
+      const result = await runWorker({ question, limit, folder, model: selectedModel, openAiRoute, requestId }, scopeRoot);
 
       console.log(
         `[opencode:${requestId}] finish duration_ms=${Date.now() - startedAt} sources=${result.sources.length}`
@@ -327,8 +431,9 @@ const server = createServer(async (req, res) => {
         ...result,
         backend: "opencode",
         mode: "agent",
-        provider: "openrouter",
+        provider: modelSelection.providerID,
         model: selectedModel,
+        openAiRoute: responseOpenAiRoute,
         folder,
         duration_ms: Date.now() - startedAt
       });

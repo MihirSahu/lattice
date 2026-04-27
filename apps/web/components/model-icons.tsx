@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
-import { Anthropic, Gemini, Grok, OpenAI } from "@lobehub/icons";
+import { Anthropic, Gemini, OpenAI } from "@lobehub/icons";
 import { Bot } from "lucide-react";
 
 type ModelAvatarProps = {
   backend?: string;
   model?: string;
-  iconKey?: "claude" | "openai" | "gemini" | "grok";
+  iconKey?: "claude" | "openai" | "gemini";
   className?: string;
 };
 
@@ -32,10 +32,6 @@ function resolveModelIcon(model?: string, iconKey?: ModelAvatarProps["iconKey"],
     return <Gemini size="1em" className={className} />;
   }
 
-  if (iconKey === "grok") {
-    return <Grok size="1em" className={className} />;
-  }
-
   if (!model) {
     return null;
   }
@@ -50,10 +46,6 @@ function resolveModelIcon(model?: string, iconKey?: ModelAvatarProps["iconKey"],
 
   if (model.startsWith("google/")) {
     return <Gemini size="1em" className={className} />;
-  }
-
-  if (model.startsWith("x-ai/")) {
-    return <Grok size="1em" className={className} />;
   }
 
   return null;

@@ -4,9 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { AssistantAnswerMarkdown } from "@/components/assistant-answer-markdown";
 import { ModelMark } from "@/components/model-icons";
+import { ReasoningStatus } from "@/components/reasoning-status";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { LoadingDots } from "@/components/ui/loading-dots";
 import type { ChatMessage } from "@/lib/schemas";
 
 type ChatMessageListProps = {
@@ -89,10 +88,7 @@ export function ChatMessageList({ messages }: ChatMessageListProps) {
         if (message.pending) {
           return (
             <section key={message.id} className="w-full">
-              <div className="flex items-center gap-3 text-[15px] leading-[1.6] text-[var(--text-tertiary)]">
-                <LoadingDots />
-                <p>Thinking through the notes in this scope...</p>
-              </div>
+              <ReasoningStatus stream={message.stream} />
             </section>
           );
         }
@@ -132,6 +128,8 @@ export function ChatMessageList({ messages }: ChatMessageListProps) {
 
         return (
           <section key={message.id} className="w-full space-y-6">
+            {message.stream ? <ReasoningStatus stream={message.stream} complete defaultCollapsed /> : null}
+
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <p className="text-[12px] font-[600] uppercase tracking-[0.12em] text-[var(--text-quaternary)]">Answer</p>

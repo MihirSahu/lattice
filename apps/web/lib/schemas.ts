@@ -5,13 +5,14 @@ export const chatRoleSchema = z.enum(["user", "assistant"]);
 export const persistedChatMessageStatusSchema = z.enum(["complete", "error"]);
 export const OPENCODE_MODEL_IDS = [
   "anthropic/claude-sonnet-4.6",
-  "openai/gpt-5",
-  "google/gemini-2.5-pro",
-  "x-ai/grok-4"
+  "anthropic/claude-opus-4.6",
+  "openai/gpt-5.5",
+  "google/gemini-2.5-pro"
 ] as const;
 export const opencodeModelIdSchema = z.enum(OPENCODE_MODEL_IDS);
-export const opencodeModelProviderSchema = z.enum(["anthropic", "openai", "google", "x-ai"]);
-export const opencodeModelIconKeySchema = z.enum(["claude", "openai", "gemini", "grok"]);
+export const opencodeOpenAiRouteSchema = z.enum(["subscription", "openrouter"]);
+export const opencodeModelProviderSchema = z.enum(["anthropic", "openai", "google"]);
+export const opencodeModelIconKeySchema = z.enum(["claude", "openai", "gemini"]);
 export const opencodeModelOptionSchema = z.object({
   id: opencodeModelIdSchema,
   label: z.string(),
@@ -42,6 +43,7 @@ export const askRequestSchema = z.object({
   folder: z.string().trim().min(1).optional(),
   engine: queryEngineSchema.optional(),
   model: opencodeModelIdSchema.optional(),
+  openAiRoute: opencodeOpenAiRouteSchema.optional(),
   limit: z.number().int().positive().max(20).optional()
 });
 
@@ -51,6 +53,7 @@ export const askResponseSchema = z.object({
   mode: z.string(),
   provider: z.string().optional(),
   model: z.string().optional(),
+  openAiRoute: opencodeOpenAiRouteSchema.optional(),
   question: z.string(),
   folder: z.string().nullable().optional(),
   duration_ms: z.number().nonnegative().optional(),
@@ -132,7 +135,8 @@ export const chatThreadSummarySchema = z.object({
   updatedAt: z.string().datetime(),
   engine: queryEngineSchema,
   folder: z.string(),
-  model: opencodeModelIdSchema.nullable().optional()
+  model: opencodeModelIdSchema.nullable().optional(),
+  openAiRoute: opencodeOpenAiRouteSchema.nullable().optional()
 });
 
 export const chatThreadDetailSchema = chatThreadSummarySchema.extend({
@@ -160,7 +164,8 @@ export const chatThreadPatchRequestSchema = z
     title: z.string().trim().min(1).max(200).optional(),
     engine: queryEngineSchema.optional(),
     folder: z.string().optional(),
-    model: opencodeModelIdSchema.nullable().optional()
+    model: opencodeModelIdSchema.nullable().optional(),
+    openAiRoute: opencodeOpenAiRouteSchema.nullable().optional()
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: "At least one thread setting must be provided."
@@ -171,7 +176,8 @@ export const chatAskRequestSchema = z.object({
   question: z.string().trim().min(1),
   engine: queryEngineSchema,
   folder: z.string().optional(),
-  model: opencodeModelIdSchema.optional()
+  model: opencodeModelIdSchema.optional(),
+  openAiRoute: opencodeOpenAiRouteSchema.optional()
 });
 
 export const chatAskResponseSchema = z.object({
@@ -186,6 +192,7 @@ export type AskErrorResponse = z.infer<typeof askErrorResponseSchema>;
 export type StatusPayload = z.infer<typeof statusSchema>;
 export type SourceFolder = z.infer<typeof sourceFolderSchema>;
 export type OpencodeModelId = z.infer<typeof opencodeModelIdSchema>;
+export type OpencodeOpenAiRoute = z.infer<typeof opencodeOpenAiRouteSchema>;
 export type OpencodeModelOption = z.infer<typeof opencodeModelOptionSchema>;
 export type PersistedChatMessage = z.infer<typeof persistedChatMessageSchema>;
 export type ChatThreadSummary = z.infer<typeof chatThreadSummarySchema>;
@@ -201,15 +208,69 @@ export type ChatMessage = {
   question?: string;
   response?: AskResponse;
   pending?: boolean;
+  stream?: PendingAssistantStreamState | null;
   error?: string | null;
   errorDetails?: string[] | null;
   errorCode?: string | null;
+};
+
+export type ReasoningTraceEntry = {
+  id: string;
+  type: "status" | "session" | "thinking" | "tool_start" | "tool_progress" | "tool_finish" | "tool_error" | "file_access";
+  label: string;
+  createdAt: string;
+  toolName?: string;
+  toolUseId?: string;
+  status?: string;
+  inputSummary?: string;
+  outputSummary?: string;
+  elapsedMs?: number;
+  files?: TraceFileReference[];
+  tokens?: TraceTokenUsage;
+  cost?: number;
+  error?: string;
+};
+
+export type ActiveToolState = {
+  toolName: string;
+  toolUseId: string;
+  label: string;
+  startedAt: string;
+  inputSummary?: string;
+  files?: TraceFileReference[];
+};
+
+export type PendingAssistantStreamState = {
+  entries: ReasoningTraceEntry[];
+  activeTool: ActiveToolState | null;
+  reasoningText: string;
+  files: TraceFileReference[];
+  error: string | null;
+};
+
+export type TraceFileOperation = "read" | "search" | "list" | "write" | "command" | "unknown";
+
+export type TraceFileReference = {
+  path: string;
+  operation: TraceFileOperation;
+  lineStart?: number;
+  lineEnd?: number;
+  source?: string;
+};
+
+export type TraceTokenUsage = {
+  input: number;
+  output: number;
+  reasoning: number;
+  cacheRead: number;
+  cacheWrite: number;
 };
 
 export type DraftThreadSettings = {
   engine: z.infer<typeof queryEngineSchema>;
   folder: string;
   model: OpencodeModelId;
+  openAiRoute: OpencodeOpenAiRoute;
 };
 
 export type LocalChatCacheSnapshot = {

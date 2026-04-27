@@ -3,7 +3,9 @@
 import { Globe } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import type { OpencodeModelId, OpencodeModelOption, SourceFolder } from "@/lib/schemas";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { shouldShowOpenAiRouteToggle } from "@/lib/chat-local-state";
+import type { OpencodeModelId, OpencodeModelOption, OpencodeOpenAiRoute, SourceFolder } from "@/lib/schemas";
 
 type MobileChatSettingsProps = {
   open: boolean;
@@ -12,6 +14,8 @@ type MobileChatSettingsProps = {
   onEngineChange: (value: "qmd" | "opencode") => void;
   selectedModel: OpencodeModelId;
   onModelChange: (value: OpencodeModelId) => void;
+  selectedOpenAiRoute: OpencodeOpenAiRoute;
+  onOpenAiRouteChange: (value: OpencodeOpenAiRoute) => void;
   selectedFolder: string;
   onFolderChange: (value: string) => void;
   opencodeModels: OpencodeModelOption[];
@@ -27,6 +31,8 @@ export function MobileChatSettings({
   onEngineChange,
   selectedModel,
   onModelChange,
+  selectedOpenAiRoute,
+  onOpenAiRouteChange,
   selectedFolder,
   onFolderChange,
   opencodeModels,
@@ -35,6 +41,7 @@ export function MobileChatSettings({
   loadingAnswer
 }: MobileChatSettingsProps) {
   const selectedModelOption = opencodeModels.find((model) => model.id === selectedModel) ?? opencodeModels[0] ?? null;
+  const showOpenAiRouteToggle = shouldShowOpenAiRouteToggle(selectedEngine, selectedModel);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -78,6 +85,31 @@ export function MobileChatSettings({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          ) : null}
+
+          {showOpenAiRouteToggle ? (
+            <div className="space-y-2">
+              <p className="text-[12px] font-[600] uppercase tracking-[0.12em] text-[var(--text-quaternary)]">OpenAI route</p>
+              <ToggleGroup
+                type="single"
+                value={selectedOpenAiRoute}
+                onValueChange={(value) => {
+                  if (value === "subscription" || value === "openrouter") {
+                    onOpenAiRouteChange(value);
+                  }
+                }}
+                disabled={loadingAnswer}
+                className="grid grid-cols-2 rounded-2xl bg-[var(--bg-button-subtle)] p-1"
+                aria-label="OpenAI route"
+              >
+                <ToggleGroupItem value="subscription" className="h-10 rounded-xl px-2 text-[13px]">
+                  Subscription
+                </ToggleGroupItem>
+                <ToggleGroupItem value="openrouter" className="h-10 rounded-xl px-2 text-[13px]">
+                  OpenRouter
+                </ToggleGroupItem>
+              </ToggleGroup>
             </div>
           ) : null}
 

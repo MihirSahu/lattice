@@ -114,14 +114,16 @@ docker compose --env-file .env -f infra/docker/docker-compose.yml up --build -d
 | `CHAT_DB_PATH` | Local SQLite path used for persisted chat history |
 | `WEB_AUTH_MODE` | Web auth mode: `dev` is the default local setup, `cloudflare` requires the Cloudflare Access email header, and `auto` is an optional hybrid mode that prefers the Cloudflare header and otherwise uses `WEB_DEV_USER_EMAIL` when configured |
 | `WEB_DEV_USER_EMAIL` | Development identity used when `WEB_AUTH_MODE=dev`, and as the fallback identity in `WEB_AUTH_MODE=auto` when Cloudflare headers are absent |
-| `OPENROUTER_API_KEY` | OpenRouter API key used by the OpenCode query service |
+| `OPENROUTER_API_KEY` | OpenRouter API key used by the OpenCode query service for non-OpenAI models |
+| `OPENCODE_OPENAI_AUTH_FILE` | Optional path to an OpenCode `auth.json` file, or a file containing just the `.openai` OAuth auth object, used for `openai/*` models |
+| `OPENCODE_OPENAI_AUTH_JSON` | Optional OpenAI OAuth auth object JSON used for `openai/*` models when no auth file is available |
 | `SYNC_S3_BUCKET` | S3 bucket containing the mirrored vault |
 | `SYNC_S3_PREFIX` | Bucket prefix used for the Obsidian vault |
 | `SYNC_AWS_REGION` | AWS region for the S3 bucket |
 | `SYNC_DELETE` | Whether local mirror deletes files removed from S3 |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Read-only AWS credentials for the Pi |
 | `QMD_COLLECTION` | Single collection name used in v1 |
-| `OPENCODE_MODEL` | Default OpenCode model identifier. Supported values: `anthropic/claude-sonnet-4.6`, `openai/gpt-5`, `google/gemini-2.5-pro`, or `x-ai/grok-4`. Falls back to Claude Sonnet 4.6 if unset or invalid. |
+| `OPENCODE_MODEL` | Default OpenCode model identifier. Supported values: `anthropic/claude-sonnet-4.6`, `anthropic/claude-opus-4.6`, `openai/gpt-5.5`, or `google/gemini-2.5-pro`. Falls back to GPT-5.5 if unset or invalid. |
 | `OPENCODE_QUERY_TIMEOUT_MS` | OpenCode inactivity timeout in milliseconds. Resets whenever the worker emits progress. Set to `0` to disable. Defaults to `120000`. |
 | `OPENCODE_PROMPT_HEARTBEAT_MS` | Heartbeat interval in milliseconds while an OpenCode prompt is still running. Defaults to `15000`. |
 | `QMD_EMBED_STRATEGY` | `on-change`, `always`, `never`, or `manual` |

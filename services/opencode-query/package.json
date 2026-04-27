@@ -5,10 +5,11 @@
   "version": "0.1.0",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --experimental-strip-types --test tests/**/*.test.ts",
     "start": "node dist/server.js"
   },
   "dependencies": {
-    "@opencode-ai/sdk": "^0.7.0"
+    "@opencode-ai/sdk": "^1.14.26"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
