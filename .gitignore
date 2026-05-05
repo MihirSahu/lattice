@@ -1,6 +1,7 @@
 .DS_Store
 .env
 .env.local
+opencode-auth.json
 .next
 node_modules
 dist
@@ -13,4 +14,3 @@ data/runtime/
 
 *.sqlite
 *.gguf
-

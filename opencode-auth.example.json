@@ -1,0 +1,7 @@
+{
+  "type": "oauth",
+  "refresh": "replace-with-openai-refresh-token",
+  "access": "replace-with-openai-access-token",
+  "expires": 1777769585000,
+  "accountId": "replace-with-chatgpt-account-id"
+}

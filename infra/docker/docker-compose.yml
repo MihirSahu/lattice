@@ -64,13 +64,18 @@ services:
       OPENCODE_PROMPT_HEARTBEAT_MS: ${OPENCODE_PROMPT_HEARTBEAT_MS}
       OPENCODE_MODEL: ${OPENCODE_MODEL}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
-      OPENCODE_OPENAI_AUTH_FILE: ${OPENCODE_OPENAI_AUTH_FILE}
-      OPENCODE_OPENAI_AUTH_JSON: ${OPENCODE_OPENAI_AUTH_JSON}
+      XDG_DATA_HOME: /app/opencode-data
+      OPENCODE_OPENAI_AUTH_FILE: /app/opencode-data/opencode/auth.json
       VAULT_MIRROR_DIR: ${VAULT_MIRROR_DIR}
     volumes:
       - type: bind
         source: ${LATTICE_DATA_ROOT}/vault
         target: /srv/vault-mirror
+      - type: bind
+        source: ${OPENCODE_OPENAI_AUTH_HOST_FILE}
+        target: /app/opencode-data/opencode/auth.json
+        bind:
+          create_host_path: false
 
   sync-worker:
     build:

@@ -50,6 +50,10 @@ type WorkerEnv = NodeJS.ProcessEnv & {
   OPENROUTER_API_KEY?: string;
 };
 
+type OpenCodeServerConfig = NonNullable<ServerOptions["config"]> & {
+  enabled_providers?: string[];
+};
+
 class StructuredWorkerError extends Error {
   response: WorkerErrorResponse;
 
@@ -875,7 +879,7 @@ export async function resolveOpenCodeRuntimeConfig(
   env: WorkerEnv = process.env
 ) {
   const modelSelection = resolveOpenCodeModelSelection(selectedModel, openAiRoute);
-  const baseConfig: NonNullable<ServerOptions["config"]> = {
+  const baseConfig: OpenCodeServerConfig = {
     model: modelSelection.configModel,
     enabled_providers: [modelSelection.providerID],
     tools: disabledSubagentTools,
@@ -915,7 +919,7 @@ export async function resolveOpenCodeRuntimeConfig(
   const openAiAuth = await loadOpenAiAuth(env);
 
   if (!openAiAuth) {
-    throw new Error("OpenAI auth is not configured. Set OPENCODE_OPENAI_AUTH_FILE or OPENCODE_OPENAI_AUTH_JSON, or mount OpenCode auth.json.");
+    throw new Error("OpenAI auth is not configured. Set OPENCODE_OPENAI_AUTH_FILE to a mounted OpenCode auth.json file.");
   }
 
   return {

@@ -3,6 +3,7 @@ FROM node:20-bookworm-slim
 WORKDIR /app
 
 RUN npm install -g opencode-ai@1.14.26
+RUN mkdir -p /app/opencode-data/opencode
 
 COPY services/opencode-query/package.json ./services/opencode-query/package.json
 COPY services/opencode-query/tsconfig.json ./services/opencode-query/tsconfig.json

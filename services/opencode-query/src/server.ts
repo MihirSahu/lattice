@@ -79,7 +79,7 @@ function missingProviderMessage(model: AllowedModelId, openAiRoute?: OpenAiRoute
     return "OPENROUTER_API_KEY is not configured.";
   }
 
-  return "OpenAI auth is not configured. Set OPENCODE_OPENAI_AUTH_FILE or OPENCODE_OPENAI_AUTH_JSON, or mount OpenCode auth.json.";
+  return "OpenAI auth is not configured. Set OPENCODE_OPENAI_AUTH_FILE to a mounted OpenCode auth.json file.";
 }
 
 function previewQuestion(value: string) {

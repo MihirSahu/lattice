@@ -67,13 +67,14 @@ lattice/
 2. Set S3 bucket, prefix, region, and read-only credentials.
 3. Set `LATTICE_DATA_ROOT` to an absolute path or leave the local default `../../data/runtime`.
    The value is consumed by Compose from `infra/docker/docker-compose.yml`, so relative paths are resolved from `infra/docker/`.
-4. Start the stack:
+4. For ChatGPT subscription models, place your OpenCode `auth.json` at the repository root as `opencode-auth.json` and leave `OPENCODE_OPENAI_AUTH_HOST_FILE=../../opencode-auth.json` in `.env`.
+5. Start the stack:
 
 ```bash
 make up
 ```
 
-5. Open `http://localhost:${WEB_PORT}` if you are running locally without Cloudflare.
+6. Open `http://localhost:${WEB_PORT}` if you are running locally without Cloudflare.
 
 For app-only iteration:
 
@@ -90,20 +91,21 @@ Node-based backend services now compile TypeScript source from `src/` into `dist
 1. Install Docker and Compose on the Raspberry Pi.
 2. Clone this repository to a stable path such as `/opt/lattice`.
 3. Create `.env` from `.env.example`.
-4. Create the runtime directories:
+4. Put a ChatGPT/OpenAI OAuth auth file at `/opt/lattice/opencode-auth.json` and keep `OPENCODE_OPENAI_AUTH_HOST_FILE=../../opencode-auth.json` in `.env`.
+5. Create the runtime directories:
 
 ```bash
 mkdir -p /srv/lattice/{vault,qmd,status,logs,chat}
 ```
 
-5. Point `LATTICE_DATA_ROOT=/srv/lattice`.
-6. Start the stack:
+6. Point `LATTICE_DATA_ROOT=/srv/lattice`.
+7. Start the stack:
 
 ```bash
 docker compose --env-file .env -f infra/docker/docker-compose.yml up --build -d
 ```
 
-7. Install the systemd unit in [`infra/systemd/lattice-compose.service`](infra/systemd/lattice-compose.service) so the stack comes back after reboot.
+8. Install the systemd unit in [`infra/systemd/lattice-compose.service`](infra/systemd/lattice-compose.service) so the stack comes back after reboot.
 
 ## Environment Variables
 
@@ -115,8 +117,7 @@ docker compose --env-file .env -f infra/docker/docker-compose.yml up --build -d
 | `WEB_AUTH_MODE` | Web auth mode: `dev` is the default local setup, `cloudflare` requires the Cloudflare Access email header, and `auto` is an optional hybrid mode that prefers the Cloudflare header and otherwise uses `WEB_DEV_USER_EMAIL` when configured |
 | `WEB_DEV_USER_EMAIL` | Development identity used when `WEB_AUTH_MODE=dev`, and as the fallback identity in `WEB_AUTH_MODE=auto` when Cloudflare headers are absent |
 | `OPENROUTER_API_KEY` | OpenRouter API key used by the OpenCode query service for non-OpenAI models |
-| `OPENCODE_OPENAI_AUTH_FILE` | Optional path to an OpenCode `auth.json` file, or a file containing just the `.openai` OAuth auth object, used for `openai/*` models |
-| `OPENCODE_OPENAI_AUTH_JSON` | Optional OpenAI OAuth auth object JSON used for `openai/*` models when no auth file is available |
+| `OPENCODE_OPENAI_AUTH_HOST_FILE` | Explicit host path to the OpenCode `auth.json` file for ChatGPT subscription-backed `openai/*` models. The default `../../opencode-auth.json` resolves to the repository-root `opencode-auth.json` from the Compose file location. |
 | `SYNC_S3_BUCKET` | S3 bucket containing the mirrored vault |
 | `SYNC_S3_PREFIX` | Bucket prefix used for the Obsidian vault |
 | `SYNC_AWS_REGION` | AWS region for the S3 bucket |
@@ -154,6 +155,16 @@ For local development without Cloudflare, use `WEB_AUTH_MODE=dev` and set `WEB_D
 More detail is in [`infra/cloudflare/tunnel-notes.md`](infra/cloudflare/tunnel-notes.md).
 
 ## Container Startup and Runtime Data
+
+### OpenAI Auth File
+
+The ChatGPT subscription flow requires an OpenCode `auth.json` file. Lattice intentionally does not read OpenAI OAuth credentials from `.env`; the auth file must be an explicit repository-root file so setup failures are obvious and token refreshes can persist.
+
+1. On a machine where OpenCode is already logged in, copy `~/.local/share/opencode/auth.json` to the Lattice repository root as `opencode-auth.json`.
+2. Keep `OPENCODE_OPENAI_AUTH_HOST_FILE=../../opencode-auth.json` in `.env`. This path is relative to `infra/docker/docker-compose.yml`.
+3. Start or recreate the stack with `make up`.
+
+The file is ignored by git via `.gitignore`. Do not commit, paste, or log `opencode-auth.json`; it contains live OAuth refresh and access tokens. The `opencode-query` container bind-mounts this file at `/app/opencode-data/opencode/auth.json`, sets `XDG_DATA_HOME=/app/opencode-data`, and sets `OPENCODE_OPENAI_AUTH_FILE` to the same auth path. This makes Lattice and OpenCode use the same file, so OpenCode's OAuth token refreshes persist back to the repository-root `opencode-auth.json`.
 
 Persistent directories expected under `LATTICE_DATA_ROOT`:
 

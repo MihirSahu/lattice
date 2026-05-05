@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -21,8 +21,10 @@ const openAiAuth = {
 
 test("OpenAI runtime config does not require OPENROUTER_API_KEY", async () => {
   const home = await mkdtemp(join(tmpdir(), "opencode-runtime-home-"));
+  const authPath = join(home, "auth.json");
+  await writeFile(authPath, JSON.stringify(openAiAuth));
   const runtime = await resolveOpenCodeRuntimeConfig("openai/gpt-5.5", "subscription", {
-    OPENCODE_OPENAI_AUTH_JSON: JSON.stringify(openAiAuth),
+    OPENCODE_OPENAI_AUTH_FILE: authPath,
     HOME: home
   });
 
@@ -35,7 +37,7 @@ test("OpenAI runtime config does not require OPENROUTER_API_KEY", async () => {
   assert.deepEqual(runtime.config.enabled_providers, ["openai"]);
   assert.deepEqual(runtime.config.tools, disabledSubagentTools);
   assert.deepEqual(runtime.config.agent?.general?.tools, disabledSubagentTools);
-  assert.equal(runtime.openAiAuth?.source, "env");
+  assert.equal(runtime.openAiAuth?.source, "file");
 });
 
 test("OpenRouter runtime config still requires OPENROUTER_API_KEY", async () => {
@@ -88,7 +90,7 @@ test("setOpenAiAuth writes credentials through the OpenCode auth endpoint", asyn
     client as Parameters<typeof setOpenAiAuth>[0],
     {
       auth: openAiAuth,
-      source: "env",
+      source: "file",
       expires: openAiAuth.expires
     },
     "test-request"

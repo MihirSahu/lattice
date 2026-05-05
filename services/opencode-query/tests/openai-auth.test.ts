@@ -5,11 +5,17 @@ import { join } from "node:path";
 import test from "node:test";
 import { loadOpenAiAuth, parseOpenAiAuthJson } from "../src/openai-auth.ts";
 
+function createJwt(payload: Record<string, unknown>) {
+  const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
+  return `${encode({ alg: "RS256", typ: "JWT" })}.${encode(payload)}.signature`;
+}
+
 const directAuth = {
   type: "oauth",
   refresh: "refresh-secret",
   access: "access-secret",
-  expires: 1777769584483
+  expires: 1777769584483,
+  accountId: "account-id"
 } as const;
 
 test("parseOpenAiAuthJson parses a direct OpenAI auth object", () => {
@@ -34,6 +40,33 @@ test("parseOpenAiAuthJson parses a full OpenCode auth file", () => {
   );
 });
 
+test("parseOpenAiAuthJson derives missing expiry and account ID from access token", () => {
+  const access = createJwt({
+    exp: 1777769585,
+    "https://api.openai.com/auth": {
+      chatgpt_account_id: "jwt-account-id"
+    }
+  });
+
+  assert.deepEqual(
+    parseOpenAiAuthJson(
+      JSON.stringify({
+        type: "oauth",
+        refresh: "refresh-secret",
+        access
+      }),
+      "auth.json"
+    ),
+    {
+      type: "oauth",
+      refresh: "refresh-secret",
+      access,
+      expires: 1777769585000,
+      accountId: "jwt-account-id"
+    }
+  );
+});
+
 test("parseOpenAiAuthJson rejects malformed auth without leaking token values", () => {
   assert.throws(
     () =>
@@ -55,7 +88,7 @@ test("parseOpenAiAuthJson rejects malformed auth without leaking token values", 
   );
 });
 
-test("loadOpenAiAuth prefers explicit file auth over env JSON", async () => {
+test("loadOpenAiAuth loads explicit file auth", async () => {
   const dir = await mkdtemp(join(tmpdir(), "opencode-auth-test-"));
   const authPath = join(dir, "auth.json");
   const fileAuth = {
@@ -68,7 +101,6 @@ test("loadOpenAiAuth prefers explicit file auth over env JSON", async () => {
 
   const loaded = await loadOpenAiAuth({
     OPENCODE_OPENAI_AUTH_FILE: authPath,
-    OPENCODE_OPENAI_AUTH_JSON: JSON.stringify(directAuth),
     HOME: join(dir, "home")
   });
 
@@ -77,7 +109,7 @@ test("loadOpenAiAuth prefers explicit file auth over env JSON", async () => {
   assert.deepEqual(loaded?.auth, fileAuth);
 });
 
-test("loadOpenAiAuth uses mounted default auth before env JSON", async () => {
+test("loadOpenAiAuth uses mounted default auth", async () => {
   const home = await mkdtemp(join(tmpdir(), "opencode-auth-home-"));
   const authDir = join(home, ".local", "share", "opencode");
   await mkdir(authDir, { recursive: true });
@@ -89,10 +121,18 @@ test("loadOpenAiAuth uses mounted default auth before env JSON", async () => {
   await writeFile(join(authDir, "auth.json"), JSON.stringify({ openai: defaultAuth }));
 
   const loaded = await loadOpenAiAuth({
-    OPENCODE_OPENAI_AUTH_JSON: JSON.stringify(directAuth),
     HOME: home
   });
 
   assert.equal(loaded?.source, "default-auth-file");
   assert.deepEqual(loaded?.auth, defaultAuth);
+});
+
+test("loadOpenAiAuth ignores OPENCODE_OPENAI_AUTH_JSON", async () => {
+  const loaded = await loadOpenAiAuth({
+    OPENCODE_OPENAI_AUTH_JSON: JSON.stringify(directAuth),
+    HOME: await mkdtemp(join(tmpdir(), "opencode-auth-json-"))
+  });
+
+  assert.equal(loaded, null);
 });
