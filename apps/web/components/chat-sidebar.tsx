@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import type { ChatThreadSummary, DraftThreadSettings } from "@/lib/schemas";
+import { cn } from "@/lib/utils";
 
 type ChatSidebarProps = {
   activeThreadId: string | null;
@@ -81,9 +82,9 @@ export function ChatSidebar({
         </Button>
       </SidebarHeader>
 
-      <SidebarContent className={isCollapsed ? "px-2 py-4" : undefined}>
+      <SidebarContent className={mobile ? "px-0 py-1" : isCollapsed ? "px-2 py-4" : undefined}>
         {activeThread ? (
-          <SidebarGroup>
+          <SidebarGroup className={mobile ? "mb-3" : undefined}>
             {!isCollapsed ? <SidebarGroupLabel>Current chat</SidebarGroupLabel> : null}
             <SidebarMenu>
               <SidebarMenuItem>
@@ -109,7 +110,7 @@ export function ChatSidebar({
             </SidebarMenu>
           </SidebarGroup>
         ) : (
-          <SidebarGroup>
+          <SidebarGroup className={mobile ? "mb-3" : undefined}>
             {!isCollapsed ? <SidebarGroupLabel>Current chat</SidebarGroupLabel> : null}
             <SidebarMenu>
               <SidebarMenuItem>
@@ -135,13 +136,13 @@ export function ChatSidebar({
         )}
 
         <SidebarGroup className="mb-0">
-          {!isCollapsed ? <SidebarGroupLabel>Previous chats</SidebarGroupLabel> : null}
-          <SidebarMenu>
+          {!isCollapsed ? <SidebarGroupLabel className={mobile ? "px-1 py-0" : undefined}>Previous chats</SidebarGroupLabel> : null}
+          <SidebarMenu className={mobile ? "space-y-0" : undefined}>
             {previousThreads.length > 0 ? (
               previousThreads.map((thread) => (
                 <SidebarMenuItem key={thread.id}>
                   <SidebarMenuButton
-                    className={isCollapsed ? "items-center px-0 py-2" : undefined}
+                    className={mobile ? "rounded-md px-1 py-0.5" : isCollapsed ? "items-center px-0 py-2" : undefined}
                     disabled={disabled}
                     onClick={() => onSelectThread(thread.id)}
                     title={`${thread.title} · ${thread.folder || "All Sources"}`}
@@ -151,7 +152,12 @@ export function ChatSidebar({
                     ) : (
                       <>
                         <span className="line-clamp-2 text-[14px] font-[600] leading-[1.45]">{thread.title}</span>
-                        <span className="text-[12px] leading-[1.45] text-[var(--text-tertiary)]">
+                        <span
+                          className={cn(
+                            "text-[12px] leading-[1.45] text-[var(--text-tertiary)]",
+                            mobile ? "text-[10.5px] leading-[1.25]" : undefined
+                          )}
+                        >
                           {thread.folder || "All Sources"} · {thread.engine.toUpperCase()} · {formatTimestamp(thread.updatedAt)}
                         </span>
                       </>
@@ -161,7 +167,12 @@ export function ChatSidebar({
               ))
             ) : (
               !isCollapsed ? (
-                <div className="rounded-2xl border border-dashed border-[var(--border-subtle)] px-3 py-4 text-[13px] leading-[1.6] text-[var(--text-tertiary)]">
+                <div
+                  className={cn(
+                    "rounded-2xl border border-dashed border-[var(--border-subtle)] px-3 py-4 text-[13px] leading-[1.6] text-[var(--text-tertiary)]",
+                    mobile ? "rounded-md px-1.5 py-1.5" : undefined
+                  )}
+                >
                   Previous chats will appear here after you start new threads.
                 </div>
               ) : null

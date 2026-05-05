@@ -6,6 +6,7 @@ import { AssistantAnswerMarkdown } from "@/components/assistant-answer-markdown"
 import { ModelMark } from "@/components/model-icons";
 import { ReasoningStatus } from "@/components/reasoning-status";
 import { Button } from "@/components/ui/button";
+import { copyTextToClipboard } from "@/lib/clipboard";
 import type { ChatMessage } from "@/lib/schemas";
 
 type ChatMessageListProps = {
@@ -41,20 +42,21 @@ export function ChatMessageList({ messages }: ChatMessageListProps) {
   }, []);
 
   async function handleCopy(id: string, kind: "prompt" | "response", value: string) {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopiedState({ id, kind });
+    const copied = await copyTextToClipboard(value);
 
-      if (copiedStateTimeoutRef.current !== null) {
-        window.clearTimeout(copiedStateTimeoutRef.current);
-      }
-
-      copiedStateTimeoutRef.current = window.setTimeout(() => {
-        setCopiedState((current) => (current?.id === id && current.kind === kind ? null : current));
-      }, 1500);
-    } catch {
-      // Ignore clipboard failures silently for now.
+    if (!copied) {
+      return;
     }
+
+    setCopiedState({ id, kind });
+
+    if (copiedStateTimeoutRef.current !== null) {
+      window.clearTimeout(copiedStateTimeoutRef.current);
+    }
+
+    copiedStateTimeoutRef.current = window.setTimeout(() => {
+      setCopiedState((current) => (current?.id === id && current.kind === kind ? null : current));
+    }, 1500);
   }
 
   function isCopied(id: string, kind: "prompt" | "response") {

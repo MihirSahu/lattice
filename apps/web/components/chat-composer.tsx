@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { Globe, ArrowUp, SlidersHorizontal } from "lucide-react";
 import { MobileChatSettings } from "@/components/mobile-chat-settings";
 import { Button } from "@/components/ui/button";
@@ -55,8 +56,26 @@ export function ChatComposer({
   sourcesError,
   onSubmit
 }: ChatComposerProps) {
+  const mobileTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const selectedModelOption = opencodeModels.find((model) => model.id === selectedModel) ?? opencodeModels[0] ?? null;
   const showOpenAiRouteToggle = shouldShowOpenAiRouteToggle(selectedEngine, selectedModel);
+
+  useEffect(() => {
+    const textarea = mobileTextareaRef.current;
+
+    if (!textarea) {
+      return;
+    }
+
+    const mobileMinHeight = 40;
+    const mobileMaxHeight = 160;
+
+    textarea.style.height = `${mobileMinHeight}px`;
+    const nextHeight =
+      textarea.scrollHeight > mobileMinHeight ? Math.min(textarea.scrollHeight, mobileMaxHeight) : mobileMinHeight;
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY = textarea.scrollHeight > mobileMaxHeight ? "auto" : "hidden";
+  }, [draftQuestion]);
 
   function handleDesktopTextareaKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key !== "Enter") {
@@ -81,7 +100,7 @@ export function ChatComposer({
       <form onSubmit={onSubmit}>
         <InputGroup className={cn("overflow-hidden", docked ? "chat-composer-docked" : undefined)}>
           <InputGroupBody className="px-2 py-2 lg:px-2 lg:py-0">
-            <div className="flex items-center gap-2 lg:block">
+            <div className="flex items-end gap-2 lg:block">
               <Button
                 type="button"
                 variant="outline"
@@ -94,15 +113,16 @@ export function ChatComposer({
                 <span className="sr-only">Open chat settings</span>
               </Button>
 
-              <div className="min-w-0 flex flex-1 items-center gap-0">
+              <div className="min-w-0 flex flex-1 items-end gap-0">
                 <div className="min-w-0 flex-1">
                   <Textarea
+                    ref={mobileTextareaRef}
                     value={draftQuestion}
                     onChange={(event) => onDraftQuestionChange(event.target.value)}
                     placeholder="Ask Lattice"
                     disabled={loadingAnswer}
                     className={cn(
-                      "h-10 min-h-[40px] border-0 px-2 py-[0.5rem] pr-1 text-[16px] leading-5 text-[var(--text-secondary)] shadow-none ring-0 placeholder:text-[var(--text-tertiary)] lg:hidden lg:px-4 lg:text-[18px]",
+                      "h-10 min-h-[40px] max-h-[160px] overflow-y-hidden overscroll-contain border-0 px-2 py-[0.5rem] pr-1 text-[16px] leading-5 text-[var(--text-secondary)] shadow-none ring-0 placeholder:text-[var(--text-tertiary)] lg:hidden lg:px-4 lg:text-[18px]",
                       docked ? "text-[16px]" : "text-[16px]"
                     )}
                   />

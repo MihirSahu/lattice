@@ -95,6 +95,7 @@ function getUnauthorizedError(error: unknown) {
 }
 
 export function QaWorkbench() {
+  const rootShellRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const hydratedUserEmailRef = useRef<string | null>(null);
   const pendingStreamRef = useRef<PendingAssistantStreamState | null>(null);
@@ -109,6 +110,7 @@ export function QaWorkbench() {
   const [pendingAsk, setPendingAsk] = useState<PendingAskOverlay | null>(null);
   const [resolvedStreams, setResolvedStreams] = useState<ResolvedAssistantStreams>({});
   const [navVisible, setNavVisible] = useState(true);
+  const [desktopViewport, setDesktopViewport] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [explicitLegacyDraftModel, setExplicitLegacyDraftModel] = useState(false);
   const [explicitLegacyThreadModels, setExplicitLegacyThreadModels] = useState<Set<string>>(() => new Set());
@@ -257,7 +259,7 @@ export function QaWorkbench() {
     (threadSummaries.length > 0 || Boolean(threadDetailQuery.data));
 
   useEffect(() => {
-    if (!isChatMode) {
+    if (!isChatMode || !desktopViewport) {
       setNavVisible(true);
       return;
     }
@@ -303,7 +305,7 @@ export function QaWorkbench() {
     return () => {
       container.removeEventListener("scroll", handleScroll);
     };
-  }, [isChatMode, selectedThreadId]);
+  }, [desktopViewport, isChatMode, selectedThreadId]);
 
   useEffect(() => {
     if (!isChatMode) {
@@ -317,13 +319,15 @@ export function QaWorkbench() {
     }
 
     requestAnimationFrame(() => {
-      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+      container.scrollTo({ top: container.scrollHeight, behavior: desktopViewport ? "smooth" : "auto" });
     });
-  }, [isChatMode, visibleMessages.length]);
+  }, [desktopViewport, isChatMode, visibleMessages.length]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(min-width: 1024px)");
     const handleChange = (event: MediaQueryListEvent) => {
+      setDesktopViewport(event.matches);
+
       if (event.matches) {
         setMobileSidebarOpen(false);
         setMobileSettingsOpen(false);
@@ -331,6 +335,7 @@ export function QaWorkbench() {
     };
 
     mediaQuery.addEventListener("change", handleChange);
+    setDesktopViewport(mediaQuery.matches);
 
     if (mediaQuery.matches) {
       setMobileSidebarOpen(false);
@@ -339,6 +344,145 @@ export function QaWorkbench() {
 
     return () => {
       mediaQuery.removeEventListener("change", handleChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(min-width: 1024px)");
+    const root = document.documentElement;
+    const body = document.body;
+    let savedStyles: {
+      rootHeight: string;
+      rootOverflow: string;
+      rootOverscrollBehavior: string;
+      bodyHeight: string;
+      bodyLeft: string;
+      bodyOverflow: string;
+      bodyOverscrollBehavior: string;
+      bodyPosition: string;
+      bodyRight: string;
+      bodyTop: string;
+      bodyWidth: string;
+      scrollY: number;
+    } | null = null;
+
+    const restoreScroll = () => {
+      if (!savedStyles) {
+        return;
+      }
+
+      root.style.height = savedStyles.rootHeight;
+      root.style.overflow = savedStyles.rootOverflow;
+      root.style.overscrollBehavior = savedStyles.rootOverscrollBehavior;
+      body.style.height = savedStyles.bodyHeight;
+      body.style.left = savedStyles.bodyLeft;
+      body.style.overflow = savedStyles.bodyOverflow;
+      body.style.overscrollBehavior = savedStyles.bodyOverscrollBehavior;
+      body.style.position = savedStyles.bodyPosition;
+      body.style.right = savedStyles.bodyRight;
+      body.style.top = savedStyles.bodyTop;
+      body.style.width = savedStyles.bodyWidth;
+      window.scrollTo(0, savedStyles.scrollY);
+      savedStyles = null;
+    };
+
+    const lockMobileScroll = () => {
+      if (mediaQuery.matches) {
+        restoreScroll();
+        return;
+      }
+
+      if (!savedStyles) {
+        savedStyles = {
+          rootHeight: root.style.height,
+          rootOverflow: root.style.overflow,
+          rootOverscrollBehavior: root.style.overscrollBehavior,
+          bodyHeight: body.style.height,
+          bodyLeft: body.style.left,
+          bodyOverflow: body.style.overflow,
+          bodyOverscrollBehavior: body.style.overscrollBehavior,
+          bodyPosition: body.style.position,
+          bodyRight: body.style.right,
+          bodyTop: body.style.top,
+          bodyWidth: body.style.width,
+          scrollY: window.scrollY
+        };
+      }
+
+      root.style.height = "100%";
+      root.style.overflow = "hidden";
+      root.style.overscrollBehavior = "none";
+      body.style.height = "100%";
+      body.style.left = "0";
+      body.style.overflow = "hidden";
+      body.style.overscrollBehavior = "none";
+      body.style.position = "fixed";
+      body.style.right = "0";
+      body.style.top = `-${savedStyles.scrollY}px`;
+      body.style.width = "100%";
+    };
+
+    lockMobileScroll();
+    mediaQuery.addEventListener("change", lockMobileScroll);
+
+    return () => {
+      mediaQuery.removeEventListener("change", lockMobileScroll);
+      restoreScroll();
+    };
+  }, []);
+
+  useEffect(() => {
+    const root = rootShellRef.current;
+    const visualViewport = window.visualViewport;
+
+    if (!root || !visualViewport) {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia("(min-width: 1024px)");
+    let animationFrame: number | null = null;
+
+    const clearViewportVars = () => {
+      root.style.removeProperty("--mobile-visual-viewport-height");
+      root.style.removeProperty("--mobile-visual-viewport-top");
+    };
+
+    const syncVisualViewport = () => {
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = null;
+
+        if (mediaQuery.matches) {
+          clearViewportVars();
+          return;
+        }
+
+        root.style.setProperty("--mobile-visual-viewport-height", `${visualViewport.height}px`);
+        root.style.setProperty("--mobile-visual-viewport-top", `${visualViewport.offsetTop}px`);
+      });
+    };
+
+    const handleDesktopChange = () => {
+      syncVisualViewport();
+    };
+
+    syncVisualViewport();
+    visualViewport.addEventListener("resize", syncVisualViewport);
+    visualViewport.addEventListener("scroll", syncVisualViewport);
+    mediaQuery.addEventListener("change", handleDesktopChange);
+
+    return () => {
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+
+      visualViewport.removeEventListener("resize", syncVisualViewport);
+      visualViewport.removeEventListener("scroll", syncVisualViewport);
+      mediaQuery.removeEventListener("change", handleDesktopChange);
+      clearViewportVars();
     };
   }, []);
 
@@ -663,7 +807,10 @@ export function QaWorkbench() {
   );
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[var(--bg-page)]">
+    <div
+      ref={rootShellRef}
+      className="fixed inset-x-0 top-[var(--mobile-visual-viewport-top,0px)] flex h-[var(--mobile-visual-viewport-height,100dvh)] overflow-hidden bg-[var(--bg-page)] lg:static lg:h-screen"
+    >
       <ChatSidebar
         activeThreadId={selectedThreadId}
         collapsed={sidebarCollapsed}
@@ -697,7 +844,7 @@ export function QaWorkbench() {
         </SheetContent>
       </Sheet>
 
-      <SidebarInset className="flex min-w-0 flex-1 flex-col">
+      <SidebarInset className="flex min-h-0 min-w-0 flex-1 flex-col">
         {isChatMode ? (
           <>
             <ChatNavbar
@@ -710,7 +857,7 @@ export function QaWorkbench() {
               onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
             />
 
-            <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto px-4 pb-8 pt-5 sm:px-6 sm:pb-10">
+            <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-10 pt-5 sm:px-6 sm:pb-12 lg:pb-10">
               {topNotice ? (
                 <div
                   className={`mb-4 rounded-2xl border px-4 py-3 text-[13px] leading-[1.6] ${
@@ -725,11 +872,13 @@ export function QaWorkbench() {
               <ChatMessageList messages={visibleMessages} />
             </div>
 
-            <div className="chat-composer-dock px-4 pb-3 pt-2 sm:px-6 sm:pb-4">{composer}</div>
+            <div className="chat-composer-dock px-4 pb-2 pt-2 sm:px-6 lg:pb-4">
+              {composer}
+            </div>
           </>
         ) : (
-          <div className="flex min-h-screen flex-1 flex-col px-4 py-6 sm:px-6 sm:py-8">
-            <div className="flex w-full justify-start">
+          <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden px-4 py-6 sm:px-6 sm:py-8 lg:h-auto lg:min-h-screen lg:overflow-visible">
+            <div className="flex w-full shrink-0 justify-start">
               <Button
                 type="button"
                 variant="outline"
@@ -784,8 +933,8 @@ export function QaWorkbench() {
               {composer}
             </div>
 
-            <div className="mx-auto flex w-full max-w-[1080px] flex-1 flex-col lg:hidden">
-              <div className="flex flex-1 items-center justify-center text-center">
+            <div className="mx-auto flex min-h-0 w-full max-w-[1080px] flex-1 flex-col overflow-hidden lg:hidden">
+              <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden py-4 text-center">
                 <div>
                   <div className="inline-flex items-center gap-3">
                     <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
@@ -803,7 +952,7 @@ export function QaWorkbench() {
 
               {topNotice ? (
                 <div
-                  className={`mb-4 rounded-2xl border px-4 py-3 text-[13px] leading-[1.6] ${
+                  className={`mb-4 shrink-0 rounded-2xl border px-4 py-3 text-[13px] leading-[1.6] ${
                     topNotice.tone === "error"
                       ? "border-[rgba(196,92,71,0.25)] bg-[var(--bg-panel)] text-[var(--text-secondary)]"
                       : "border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-tertiary)]"
@@ -813,7 +962,7 @@ export function QaWorkbench() {
                 </div>
               ) : null}
 
-              <div className="mt-auto pb-1">{composer}</div>
+              <div className="shrink-0 pb-2">{composer}</div>
             </div>
           </div>
         )}

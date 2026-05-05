@@ -5,6 +5,7 @@ import { AlertCircle, Check, CheckCircle2, ChevronDown, ChevronRight, CircleDash
 import { LoadingDots } from "@/components/ui/loading-dots";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { copyTextToClipboard } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
 import type { PendingAssistantStreamState, ReasoningTraceEntry, TraceFileReference } from "@/lib/schemas";
 
@@ -158,21 +159,21 @@ export function ReasoningStatus({ stream, complete = false, defaultCollapsed = f
 
   async function handleCopyFilePath(file: TraceFileReference) {
     const fileKey = getFileKey(file);
+    const copied = await copyTextToClipboard(getClipboardFilePath(file.path));
 
-    try {
-      await navigator.clipboard.writeText(getClipboardFilePath(file.path));
-      setCopiedFileKey(fileKey);
-
-      if (copiedFileTimeoutRef.current !== null) {
-        window.clearTimeout(copiedFileTimeoutRef.current);
-      }
-
-      copiedFileTimeoutRef.current = window.setTimeout(() => {
-        setCopiedFileKey((current) => (current === fileKey ? null : current));
-      }, 1500);
-    } catch {
-      // Match the chat copy behavior: clipboard failures do not interrupt the UI.
+    if (!copied) {
+      return;
     }
+
+    setCopiedFileKey(fileKey);
+
+    if (copiedFileTimeoutRef.current !== null) {
+      window.clearTimeout(copiedFileTimeoutRef.current);
+    }
+
+    copiedFileTimeoutRef.current = window.setTimeout(() => {
+      setCopiedFileKey((current) => (current === fileKey ? null : current));
+    }, 1500);
   }
 
   return (
