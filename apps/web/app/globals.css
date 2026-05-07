@@ -256,6 +256,22 @@ textarea {
 
   .answer-markdown {
     color: var(--text-primary);
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
+
+  .answer-markdown > * {
+    max-width: 100%;
+  }
+
+  .answer-markdown pre,
+  .answer-markdown table {
+    overflow-wrap: normal;
+  }
+
+  .answer-markdown pre {
+    max-width: 100%;
+    overflow-x: auto;
   }
 
   .answer-markdown > * + * {
