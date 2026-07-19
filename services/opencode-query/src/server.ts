@@ -5,6 +5,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { hasOpenAiAuth } from "./openai-auth.js";
+import { terminateProcessWithGrace } from "./process-lifecycle.js";
 import {
   getModelCatalog,
   resolveDefaultModelId,
@@ -43,8 +44,10 @@ class QueryWorkerInvocationError extends Error {
 
 const port = Number(process.env.OPENCODE_QUERY_PORT || 8282);
 const timeoutMs = Number(process.env.OPENCODE_QUERY_TIMEOUT_MS || 120000);
+const workerShutdownGraceMs = Number(process.env.OPENCODE_WORKER_SHUTDOWN_GRACE_MS || 5000);
 const vaultRoot = resolve(process.env.VAULT_MIRROR_DIR || "/srv/vault-mirror");
 const workerPath = join(dirname(fileURLToPath(import.meta.url)), "query-worker.js");
+const activeWorkerTerminators = new Set<() => void>();
 
 function respond(res: ServerResponse, status: number, payload: unknown) {
   res.writeHead(status, { "content-type": "application/json; charset=utf-8" });
@@ -164,6 +167,7 @@ function runWorker(
   return new Promise((resolveResult, reject) => {
     const child = spawn(process.execPath, [workerPath], {
       cwd: scopeRoot,
+      detached: process.platform !== "win32",
       env: {
         ...process.env,
         VAULT_MIRROR_DIR: vaultRoot
@@ -176,6 +180,7 @@ function runWorker(
     let structuredError: WorkerErrorResponse | null = null;
     let settled = false;
     let timer: NodeJS.Timeout | null = null;
+    let terminationStarted = false;
     const stdoutParser = new NdjsonLineParser<WorkerStreamEvent>();
 
     const clearTimer = () => {
@@ -186,6 +191,33 @@ function runWorker(
       clearTimeout(timer);
       timer = null;
     };
+
+    const terminateWorker = (reason: string) => {
+      if (terminationStarted) {
+        return;
+      }
+
+      const cancelTermination = terminateProcessWithGrace(
+        child,
+        workerShutdownGraceMs,
+        () => {
+          console.error(
+            `[opencode:${payload.requestId}] worker_terminate signal=SIGKILL reason=grace_expired grace_ms=${workerShutdownGraceMs}`
+          );
+        },
+        { processGroup: true }
+      );
+
+      if (!cancelTermination) {
+        return;
+      }
+
+      terminationStarted = true;
+      console.error(`[opencode:${payload.requestId}] worker_terminate signal=SIGTERM reason=${reason}`);
+    };
+    const terminateForServiceShutdown = () => terminateWorker("service_shutdown");
+
+    activeWorkerTerminators.add(terminateForServiceShutdown);
 
     const armTimer = () => {
       if (settled || timeoutMs <= 0) {
@@ -200,7 +232,7 @@ function runWorker(
 
         settled = true;
         console.error(`[opencode:${payload.requestId}] inactivity_timeout after ${timeoutMs}ms`);
-        child.kill("SIGKILL");
+        terminateWorker("inactivity_timeout");
         reject(
           new QueryWorkerInvocationError({
             ok: false,
@@ -246,7 +278,7 @@ function runWorker(
 
         settled = true;
         clearTimer();
-        child.kill("SIGKILL");
+        terminateWorker("invalid_worker_stream");
         reject(new Error(`Failed to parse OpenCode worker stream: ${error instanceof Error ? error.message : "unknown error"}`));
       }
     });
@@ -259,6 +291,8 @@ function runWorker(
     });
 
     child.on("error", (error) => {
+      activeWorkerTerminators.delete(terminateForServiceShutdown);
+
       if (settled) {
         return;
       }
@@ -269,6 +303,9 @@ function runWorker(
     });
 
     child.on("close", (code) => {
+      terminateWorker("worker_exit_cleanup");
+      activeWorkerTerminators.delete(terminateForServiceShutdown);
+
       if (settled) {
         return;
       }
@@ -465,3 +502,22 @@ const server = createServer(async (req, res) => {
 server.listen(port, "0.0.0.0", () => {
   console.log(`OpenCode query service listening on :${port}`);
 });
+
+let serviceShuttingDown = false;
+
+function shutdownService(signal: NodeJS.Signals) {
+  if (serviceShuttingDown) {
+    return;
+  }
+
+  serviceShuttingDown = true;
+  console.log(`[opencode] service_shutdown signal=${signal} active_workers=${activeWorkerTerminators.size}`);
+  server.close();
+
+  for (const terminateWorker of activeWorkerTerminators) {
+    terminateWorker();
+  }
+}
+
+process.once("SIGTERM", () => shutdownService("SIGTERM"));
+process.once("SIGINT", () => shutdownService("SIGINT"));

@@ -56,12 +56,14 @@ services:
       context: ../..
       dockerfile: services/opencode-query/Dockerfile
     restart: unless-stopped
+    init: true
     expose:
       - "8282"
     environment:
       OPENCODE_QUERY_PORT: ${OPENCODE_QUERY_PORT}
       OPENCODE_QUERY_TIMEOUT_MS: ${OPENCODE_QUERY_TIMEOUT_MS}
       OPENCODE_PROMPT_HEARTBEAT_MS: ${OPENCODE_PROMPT_HEARTBEAT_MS}
+      OPENCODE_WORKER_SHUTDOWN_GRACE_MS: ${OPENCODE_WORKER_SHUTDOWN_GRACE_MS}
       OPENCODE_MODEL: ${OPENCODE_MODEL}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       XDG_DATA_HOME: /app/opencode-data

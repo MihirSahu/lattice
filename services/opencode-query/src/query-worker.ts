@@ -1126,20 +1126,39 @@ async function main() {
     requestId,
     `start limit=${limit} provider=${runtimeConfig.modelSelection.providerID} model=${runtimeConfig.modelSelection.modelID} openai_route=${openAiRoute} scope=${scopeRoot === vaultRoot ? "." : scopeRoot.slice(vaultRoot.length + 1)} heartbeat_ms=${promptHeartbeatMs} question="${previewQuestion(question)}"`
   );
-  const opencodeServer = await createOpencodeServer({
-    hostname: "127.0.0.1",
-    port: serverPort,
-    timeout: 15000,
-    config: runtimeConfig.config
-  });
+  const serverAbort = new AbortController();
+  let opencodeServer: Awaited<ReturnType<typeof createOpencodeServer>> | null = null;
+  let shutdownSignal: NodeJS.Signals | null = null;
+  const handleShutdownSignal = (signal: NodeJS.Signals) => {
+    if (shutdownSignal) {
+      return;
+    }
 
-  const client = createOpencodeClient({
-    baseUrl: opencodeServer.url,
-    throwOnError: true,
-    responseStyle: "data"
-  });
+    shutdownSignal = signal;
+    logProgress(requestId, `shutdown_signal signal=${signal}`);
+    serverAbort.abort(new Error(`OpenCode worker received ${signal}.`));
+  };
+  const handleSigterm = () => handleShutdownSignal("SIGTERM");
+  const handleSigint = () => handleShutdownSignal("SIGINT");
+
+  process.once("SIGTERM", handleSigterm);
+  process.once("SIGINT", handleSigint);
 
   try {
+    opencodeServer = await createOpencodeServer({
+      hostname: "127.0.0.1",
+      port: serverPort,
+      signal: serverAbort.signal,
+      timeout: 15000,
+      config: runtimeConfig.config
+    });
+
+    const client = createOpencodeClient({
+      baseUrl: opencodeServer.url,
+      throwOnError: true,
+      responseStyle: "data"
+    });
+
     logProgress(requestId, `opencode_server_ready port=${serverPort}`);
     if (runtimeConfig.openAiAuth) {
       await setOpenAiAuth(client, runtimeConfig.openAiAuth, requestId);
@@ -1150,8 +1169,10 @@ async function main() {
     );
     await writeEvent({ type: "final", result });
   } finally {
+    process.off("SIGTERM", handleSigterm);
+    process.off("SIGINT", handleSigint);
     logProgress(requestId, "shutdown");
-    opencodeServer.close();
+    opencodeServer?.close();
   }
 }
 

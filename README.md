@@ -127,6 +127,7 @@ docker compose --env-file .env -f infra/docker/docker-compose.yml up --build -d
 | `OPENCODE_MODEL` | Default OpenCode model identifier. Supported values: `anthropic/claude-sonnet-4.6`, `anthropic/claude-opus-4.6`, `openai/gpt-5.5`, or `google/gemini-2.5-pro`. Falls back to GPT-5.5 if unset or invalid. |
 | `OPENCODE_QUERY_TIMEOUT_MS` | OpenCode inactivity timeout in milliseconds. Resets whenever the worker emits progress. Set to `0` to disable. Defaults to `120000`. |
 | `OPENCODE_PROMPT_HEARTBEAT_MS` | Heartbeat interval in milliseconds while an OpenCode prompt is still running. Defaults to `15000`. |
+| `OPENCODE_WORKER_SHUTDOWN_GRACE_MS` | Grace period in milliseconds before a timed-out worker and its OpenCode process group are force-killed. Defaults to `5000`. |
 | `QMD_EMBED_STRATEGY` | `on-change`, `always`, `never`, or `manual` |
 | `CLOUDFLARE_TUNNEL_TOKEN` | Token for the optional `cloudflared` service |
 
