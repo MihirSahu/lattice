@@ -30,4 +30,7 @@ jobs:
           - services/scheduler/Dockerfile
     steps:
       - uses: actions/checkout@v5
-      - run: docker build -f "${{ matrix.dockerfile }}" .
+      - run: docker build -f "${{ matrix.dockerfile }}" -t lattice-ci .
+      - name: Exercise web image streaming and SQLite cleanup
+        if: matrix.dockerfile == 'apps/web/Dockerfile'
+        run: docker run --rm --network none -v "$PWD/scripts/smoke-web-container.mjs:/tmp/smoke-web.mjs:ro" lattice-ci node /tmp/smoke-web.mjs
