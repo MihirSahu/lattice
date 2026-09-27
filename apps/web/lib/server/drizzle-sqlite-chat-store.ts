@@ -1,9 +1,10 @@
+import { DEFAULT_MODEL_ID, DEFAULT_OPENAI_ROUTE, isAllowedModelId } from "@lattice/model-catalog";
 import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { hasAssistantStreamContent } from "@/lib/chat-trace";
 import type { AppendQuestionAndAnswerInput, ChatStore, UpsertThreadSettingsInput } from "@/lib/server/chat-store";
 import { ChatThreadNotFoundError } from "@/lib/server/chat-store";
-import { mapThreadDetail, mapThreadSummaryRow, type ChatMessageRow, type ChatMessageTraceRow } from "@/lib/server/chat-store-mappers";
+import { mapThreadDetail, mapThreadSummaryRow, type ChatMessageTraceRow } from "@/lib/server/chat-store-mappers";
 import { getChatDatabase } from "@/lib/server/db/client";
 import { ensureChatDbMigrated } from "@/lib/server/db/migrate";
 import { chatMessageTraces, chatMessages, chatThreads } from "@/lib/server/db/schema";
@@ -57,11 +58,11 @@ export class DrizzleSqliteChatStore implements ChatStore {
       return null;
     }
 
-    const messageRows = (await db
+    const messageRows = await db
       .select()
       .from(chatMessages)
       .where(eq(chatMessages.threadId, threadId))
-      .orderBy(asc(chatMessages.createdAt))) as ChatMessageRow[];
+      .orderBy(asc(chatMessages.createdAt));
 
     const messageIds = messageRows.map((row) => row.id);
     const traceRows: ChatMessageTraceRow[] = messageIds.length
@@ -118,10 +119,16 @@ export class DrizzleSqliteChatStore implements ChatStore {
     const { db, sqlite } = getChatDatabase();
     const now = new Date().toISOString();
     const nextThreadId = input.threadId ?? randomUUID();
+    const model = isAllowedModelId(input.successResponse?.model)
+      ? input.successResponse.model
+      : input.model ?? DEFAULT_MODEL_ID;
+    // Store the effective route explicitly so new API-default chats cannot be
+    // mistaken for legacy subscription chats when the caller omits settings.
+    const openAiRoute = model.startsWith("openai/")
+      ? input.successResponse?.openAiRoute ?? input.openAiRoute ?? DEFAULT_OPENAI_ROUTE
+      : null;
 
-    sqlite.exec("begin");
-
-    try {
+    sqlite.transaction(() => {
       if (input.threadId) {
         const existingThread = db
           .select()
@@ -133,57 +140,58 @@ export class DrizzleSqliteChatStore implements ChatStore {
           throw new ChatThreadNotFoundError(nextThreadId);
         }
 
-        await db
+        db
           .update(chatThreads)
           .set({
             engine: input.engine,
             folder: input.folder ?? "",
-            model: input.engine === "opencode" ? input.model ?? null : null,
-            openAiRoute: input.engine === "opencode" ? input.openAiRoute ?? null : null,
+            model,
+            openAiRoute,
             updatedAt: now
           })
-          .where(and(eq(chatThreads.id, nextThreadId), eq(chatThreads.userEmail, input.userEmail)));
+          .where(and(eq(chatThreads.id, nextThreadId), eq(chatThreads.userEmail, input.userEmail)))
+          .run();
       } else {
-        await db.insert(chatThreads).values({
+        db.insert(chatThreads).values({
           id: nextThreadId,
           userEmail: input.userEmail,
           title: truncateTitle(input.question),
           engine: input.engine,
           folder: input.folder ?? "",
-          model: input.engine === "opencode" ? input.model ?? null : null,
-          openAiRoute: input.engine === "opencode" ? input.openAiRoute ?? null : null,
+          model,
+          openAiRoute,
           createdAt: now,
           updatedAt: now
-        });
+        }).run();
       }
 
-      await db.insert(chatMessages).values({
+      db.insert(chatMessages).values({
         id: randomUUID(),
         threadId: nextThreadId,
         role: "user",
         status: "complete",
         createdAt: now,
         question: input.question
-      });
+      }).run();
 
       const assistantTimestamp = new Date().toISOString();
       let assistantMessageId: string | null = null;
 
       if (input.successResponse) {
         assistantMessageId = randomUUID();
-        await db.insert(chatMessages).values({
+        db.insert(chatMessages).values({
           id: assistantMessageId,
           threadId: nextThreadId,
           role: "assistant",
           status: "complete",
           createdAt: assistantTimestamp,
           responseJson: JSON.stringify(input.successResponse)
-        });
+        }).run();
       }
 
       if (input.errorResponse) {
         assistantMessageId = randomUUID();
-        await db.insert(chatMessages).values({
+        db.insert(chatMessages).values({
           id: assistantMessageId,
           threadId: nextThreadId,
           role: "assistant",
@@ -192,30 +200,26 @@ export class DrizzleSqliteChatStore implements ChatStore {
           errorText: input.errorResponse.error,
           errorDetailsJson: JSON.stringify(input.errorResponse),
           errorCode: input.errorResponse.code ?? null
-        });
+        }).run();
       }
 
       if (assistantMessageId && hasAssistantStreamContent(input.assistantStream)) {
-        await db.insert(chatMessageTraces).values({
+        db.insert(chatMessageTraces).values({
           messageId: assistantMessageId,
           streamJson: JSON.stringify(input.assistantStream),
           createdAt: assistantTimestamp,
           updatedAt: assistantTimestamp
-        });
+        }).run();
       }
 
-      await db
+      db
         .update(chatThreads)
         .set({
           updatedAt: assistantTimestamp
         })
-        .where(and(eq(chatThreads.id, nextThreadId), eq(chatThreads.userEmail, input.userEmail)));
-
-      sqlite.exec("commit");
-    } catch (error) {
-      sqlite.exec("rollback");
-      throw error;
-    }
+        .where(and(eq(chatThreads.id, nextThreadId), eq(chatThreads.userEmail, input.userEmail)))
+        .run();
+    })();
 
     const thread = await this.getThreadDetail(input.userEmail, nextThreadId);
 

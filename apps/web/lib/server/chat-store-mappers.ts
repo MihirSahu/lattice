@@ -1,3 +1,4 @@
+import { DEFAULT_MODEL_ID, DEFAULT_OPENAI_ROUTE } from "@lattice/model-catalog";
 import {
   OPENCODE_MODEL_IDS,
   chatThreadDetailSchema,
@@ -81,12 +82,14 @@ function normalizePersistedModel(value: string | null) {
 }
 
 export function mapThreadSummaryRow(row: ChatThreadRow): ChatThreadSummary {
-  const model = normalizePersistedModel(row.model);
+  const legacyQmd = row.engine === "qmd";
+  const model = legacyQmd ? DEFAULT_MODEL_ID : normalizePersistedModel(row.model);
 
   return chatThreadSummarySchema.parse({
     ...row,
+    engine: legacyQmd ? "opencode" : row.engine,
     model,
-    openAiRoute: model?.startsWith("openai/") ? row.openAiRoute ?? "subscription" : null
+    openAiRoute: legacyQmd ? DEFAULT_OPENAI_ROUTE : model?.startsWith("openai/") ? row.openAiRoute ?? "subscription" : null
   });
 }
 

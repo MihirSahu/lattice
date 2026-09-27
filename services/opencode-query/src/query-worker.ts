@@ -5,6 +5,7 @@ import { createOpencodeClient, createOpencodeServer } from "@opencode-ai/sdk";
 import type { ServerOptions } from "@opencode-ai/sdk/server";
 import { loadOpenAiAuth, type LoadedOpenAiAuth } from "./openai-auth.js";
 import {
+  DEFAULT_OPENAI_ROUTE,
   type AllowedModelId,
   type OpenAiRoute,
   resolveDefaultModelId,
@@ -875,7 +876,7 @@ async function pickOpenPort() {
 
 export async function resolveOpenCodeRuntimeConfig(
   selectedModel: AllowedModelId,
-  openAiRoute: OpenAiRoute = "subscription",
+  openAiRoute: OpenAiRoute = DEFAULT_OPENAI_ROUTE,
   env: WorkerEnv = process.env
 ) {
   const modelSelection = resolveOpenCodeModelSelection(selectedModel, openAiRoute);

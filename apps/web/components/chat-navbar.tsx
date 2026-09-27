@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils";
 type ChatNavbarProps = {
   visible: boolean;
   title: string;
-  engine: "qmd" | "opencode";
   folder: string;
   sidebarCollapsed: boolean;
   onToggleSidebar: () => void;
@@ -17,7 +16,6 @@ type ChatNavbarProps = {
 export function ChatNavbar({
   visible,
   title,
-  engine,
   folder,
   sidebarCollapsed,
   onToggleSidebar,
@@ -55,7 +53,7 @@ export function ChatNavbar({
           <div className="min-w-0">
             <p className="truncate text-[15px] font-[600] leading-[1.4] text-[var(--text-primary)]">{title}</p>
             <p className="truncate text-[12px] leading-[1.45] text-[var(--text-tertiary)]">
-              {folder || "All Sources"} · {engine.toUpperCase()}
+              {folder || "All Sources"} · OpenCode
             </p>
           </div>
         </div>

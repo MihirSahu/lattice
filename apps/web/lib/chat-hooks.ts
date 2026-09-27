@@ -21,7 +21,7 @@ import {
 type ThreadPatchRequest = {
   threadId: string;
   title?: string;
-  engine?: "qmd" | "opencode";
+  engine?: "opencode";
   folder?: string;
   model?: ChatAskRequest["model"] | null;
   openAiRoute?: ChatAskRequest["openAiRoute"] | null;

@@ -2,7 +2,7 @@
 
 ## Goal
 
-Expose only the Lattice web app to the public internet. Keep QMD and the sync worker private.
+Expose only the Lattice web app to the public internet. Keep OpenCode query and the sync worker private.
 
 ## Recommended Setup
 
@@ -28,7 +28,7 @@ For the web app auth behavior itself:
 
 ## Security Notes
 
-- Do not publish `qmd` or `sync-worker` ports on the host.
+- Do not publish `opencode-query` or `sync-worker` ports on the host.
 - Access should happen at the Cloudflare edge before traffic reaches the origin.
 - `WEB_AUTH_MODE=dev` is intended for local development only.
 - If you do expose the web port directly for local troubleshooting, keep that scoped to LAN-only access.

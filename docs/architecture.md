@@ -1,65 +1,11 @@
 # Architecture
 
-## Services
+`sync-worker` copies the configured S3 prefix into a local vault mirror using the AWS CLI. `scheduler` triggers that operation periodically. The worker persists sync status and logs; no indexing or embedding step runs.
 
-### `web`
+`opencode-query` exposes internal `/query`, `/models`, `/sources`, and `/health` endpoints. It lists visible vault folders and runs an isolated OpenCode worker for each question. The worker restricts file access to the selected vault scope and streams progress plus a grounded answer. Timeout and shutdown handling terminate the worker and its native OpenCode process group.
 
-Next.js App Router application.
+`web` provides the Next.js UI, identity checks, stream proxy, and SQLite chat persistence. It uses the shared `@lattice/model-catalog` package with the query service. The only active query engine is OpenCode. New OpenAI questions default to OpenRouter; explicit subscription selections are retained.
 
-- serves the browser UI
-- proxies question, status, and sync actions through route handlers
-- stays the only public origin behind Cloudflare Tunnel
+`cloudflared` optionally publishes the web service through Cloudflare Tunnel. Configure Cloudflare Access before exposing the UI. Query and sync services remain on the internal Docker network.
 
-### `qmd`
-
-Internal HTTP service backed by `@tobilu/qmd`.
-
-- opens the QMD SQLite store from the persistent volume
-- answers retrieval queries from the local mirror collection
-- stays on the internal Docker network only
-
-### `sync-worker`
-
-Internal orchestration API.
-
-- runs `aws s3 sync`
-- runs `qmd update`
-- conditionally runs `qmd embed`
-- persists status and per-run logs
-- exposes `/run`, `/status`, and `/health`
-
-### `scheduler`
-
-Single-purpose container that sleeps for a configured interval and triggers the sync worker.
-
-- keeps recurring behavior inside the container stack
-- avoids host-level cron or timer dependence in production
-
-### `cloudflared`
-
-Optional sidecar for Cloudflare Tunnel.
-
-- publishes the web service only
-- relies on Cloudflare Access for user authentication
-
-## Data Flow
-
-```text
-S3 -> sync-worker -> vault mirror -> qmd update/embed -> qmd service -> web app -> browser
-```
-
-## Persistence
-
-- `vault/`: mirror of S3-backed Obsidian content
-- `qmd/`: QMD SQLite database and related state
-- `status/`: `status.json`
-- `logs/`: sync and indexing run logs
-
-## Security Model
-
-- AWS credentials are read-only and prefix-scoped
-- QMD is not exposed outside Docker
-- sync-worker is not exposed outside Docker
-- only the web app is published through Cloudflare Tunnel
-- Cloudflare Access is mandatory before the UI is reachable
-
+Persistent directories are `vault/`, `chat/`, `status/`, and `logs/`. The chat database is migrated transactionally on first use. Historical answer payloads are retained, including answers produced by retired engines.

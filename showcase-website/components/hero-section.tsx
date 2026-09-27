@@ -314,10 +314,10 @@ const s = {
 } as const;
 
 const THREADS = [
-  { title: "Reading notes on Thinking, Fast and Slow", meta: "All Sources · QMD · Apr 18", active: true },
-  { title: "Weekly review highlights", meta: "Books · QMD · Apr 15" },
-  { title: "My project ideas list", meta: "Projects · QMD · Apr 12" },
-  { title: "Goals for Q2 2026", meta: "All Sources · QMD · Apr 10" },
+  { title: "Reading notes on Thinking, Fast and Slow", meta: "All Sources · OpenCode · Apr 18", active: true },
+  { title: "Weekly review highlights", meta: "Books · OpenCode · Apr 15" },
+  { title: "My project ideas list", meta: "Projects · OpenCode · Apr 12" },
+  { title: "Goals for Q2 2026", meta: "All Sources · OpenCode · Apr 10" },
 ];
 
 export default function HeroSection() {
@@ -336,8 +336,8 @@ export default function HeroSection() {
           always within reach.
         </h1>
         <p className="hero-sub">
-          A personal knowledge system that mirrors your Obsidian vault from S3, indexes it with QMD,
-          and exposes a secure web UI for grounded retrieval.
+          A personal knowledge system that mirrors your Obsidian vault from S3 and uses OpenCode
+          to answer questions grounded in your notes through a secure web UI.
         </p>
         <div className="hero-actions">
           <a href="https://github.com/MihirSahu/lattice" className="btn-ghost" target="_blank" rel="noreferrer">
@@ -419,7 +419,7 @@ export default function HeroSection() {
                         Reading notes on Thinking, Fast and Slow
                       </span>
                       <span className="preview-nav-meta" style={{ fontSize: 11.5, lineHeight: 1.4, color: "var(--text-tertiary)" }}>
-                        All Sources · QMD
+                        All Sources · OpenCode
                       </span>
                     </div>
                   </div>
@@ -445,7 +445,7 @@ export default function HeroSection() {
                       Your notes cover Kahneman&apos;s two-system framework. System 1 operates automatically with little effort, while System 2 allocates attention to effortful activities. Key highlights include the availability heuristic, anchoring effects, and the planning fallacy.
                     </p>
                     <div className="preview-answer-footer" style={s.answerFooter}>
-                      <span>QMD</span>
+                      <span>OpenCode</span>
                       <span style={{ opacity: 0.4 }}>·</span>
                       <span>All Sources</span>
                       <span style={{ opacity: 0.4 }}>·</span>
@@ -467,7 +467,7 @@ export default function HeroSection() {
                       {/* Footer */}
                       <div className="preview-composer-footer" style={s.composerFooter}>
                         <div style={s.composerPills}>
-                          <span className="linear-pill" style={s.pill}>QMD</span>
+                          <span className="linear-pill" style={s.pill}>OpenCode</span>
                           <span className="linear-pill" style={s.pill}>
                             <IconGlobe />
                             All Sources

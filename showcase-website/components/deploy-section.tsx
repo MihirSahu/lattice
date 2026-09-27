@@ -6,7 +6,7 @@ export default function DeploySection() {
           <div className="section-label">Deployment</div>
           <h2 className="section-h2">One Compose file. Any ARM64 Linux box.</h2>
           <p className="section-sub">
-            The full stack — sync worker, QMD, OpenCode query service, scheduler, and web app —
+            The full stack — sync worker, OpenCode query service, scheduler, and web app —
             orchestrated by a single Docker Compose file.
           </p>
         </div>
@@ -15,7 +15,6 @@ export default function DeploySection() {
           <div className="services-list">
             {[
               { name: "web", badge: "public", internal: false },
-              { name: "qmd", badge: "internal", internal: true },
               { name: "opencode-query", badge: "internal", internal: true },
               { name: "sync-worker", badge: "internal", internal: true },
               { name: "scheduler", badge: "internal", internal: true },
@@ -47,7 +46,7 @@ export default function DeploySection() {
                 <span className="code-comment"># Set CLOUDFLARE_TUNNEL_TOKEN{"\n"}</span>
                 {"\n"}
                 <span className="code-comment"># Create runtime directories{"\n"}</span>
-                <span className="code-cmd">mkdir -p</span>{" /srv/lattice/{vault,qmd,status,logs}\n"}
+                <span className="code-cmd">mkdir -p</span>{" /srv/lattice/{vault,status,logs,chat}\n"}
                 {"\n"}
                 <span className="code-comment"># Start the stack{"\n"}</span>
                 <span className="code-cmd">make</span>{" up"}

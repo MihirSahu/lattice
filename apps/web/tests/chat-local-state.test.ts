@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { DEFAULT_MODEL_ID, DEFAULT_OPENAI_ROUTE } from "@lattice/model-catalog";
 import { createPendingAssistantStreamState } from "../lib/chat-trace.ts";
 import {
   createDraftThreadSettings,
@@ -16,6 +17,50 @@ import {
 } from "../lib/chat-local-state.ts";
 
 type StorageMap = Map<string, string>;
+
+test("cached QMD conversations continue through OpenRouter without rewriting historical answers", () => {
+  withMockWindow((store) => {
+    const thread = {
+      id: "8774e6dc-6560-4107-aab6-76e0d34c97dc",
+      title: "Archived conversation",
+      engine: "qmd",
+      folder: "notes",
+      model: null,
+      openAiRoute: null,
+      createdAt: "2026-04-20T12:00:00.000Z",
+      updatedAt: "2026-04-20T12:00:05.000Z"
+    };
+    const messages = [{ id: "historic-answer", role: "assistant", response: { backend: "qmd", answer: "Original answer" } }];
+    store.set(getChatCacheStorageKey("alice@example.com"), JSON.stringify({
+      threadSummaries: [thread],
+      lastThreadDetail: { ...thread, messages },
+      cachedAt: "2026-04-20T12:00:05.000Z"
+    }));
+    const cache = loadLocalChatCache("alice@example.com");
+    for (const loaded of [cache?.threadSummaries[0], cache?.lastThreadDetail]) {
+      assert.equal(loaded?.engine, "opencode");
+      assert.equal(loaded?.model, DEFAULT_MODEL_ID);
+      assert.equal(loaded?.openAiRoute, DEFAULT_OPENAI_ROUTE);
+      assert.equal(loaded?.folder, "notes");
+    }
+    assert.deepEqual(cache?.lastThreadDetail?.messages, messages);
+  });
+});
+
+test("saved QMD drafts reopen with the API model default and preserve the question", () => {
+  withMockWindow((store) => {
+    store.set(getChatUiStorageKey("alice@example.com"), JSON.stringify({
+      draftQuestion: "An unfinished question",
+      draftThreadSettings: { engine: "qmd", folder: "notes", model: "anthropic/claude-sonnet-4.6", openAiRoute: "subscription" }
+    }));
+    const state = loadLocalChatUiState("alice@example.com");
+    assert.equal(state.draftThreadSettings.engine, "opencode");
+    assert.equal(state.draftThreadSettings.model, DEFAULT_MODEL_ID);
+    assert.equal(state.draftThreadSettings.openAiRoute, DEFAULT_OPENAI_ROUTE);
+    assert.equal(state.draftThreadSettings.folder, "notes");
+    assert.equal(state.draftQuestion, "An unfinished question");
+  });
+});
 
 function createMockStorage(store: StorageMap) {
   return {
@@ -66,7 +111,7 @@ test("chat local state keeps cache snapshots isolated per user", () => {
           title: "Alice thread",
           createdAt: "2026-04-20T12:00:00.000Z",
           updatedAt: "2026-04-20T12:00:05.000Z",
-          engine: "qmd",
+          engine: "opencode",
           folder: "",
           model: null
         }
@@ -166,16 +211,15 @@ test("chat local state hydrates saved OpenAI route for GPT models", () => {
 
 test("OpenAI route normalization applies only to OpenAI models", () => {
   assert.equal(normalizeOpenAiRoute("openrouter", "openai/gpt-5.5"), "openrouter");
-  assert.equal(normalizeOpenAiRoute("invalid", "openai/gpt-5.5"), "subscription");
-  assert.equal(normalizeOpenAiRoute("openrouter", "anthropic/claude-sonnet-4.6"), "subscription");
-  assert.equal(normalizeOpenAiRoute("openrouter", "anthropic/claude-opus-4.6"), "subscription");
+  assert.equal(normalizeOpenAiRoute("invalid", "openai/gpt-5.5"), "openrouter");
+  assert.equal(normalizeOpenAiRoute("openrouter", "anthropic/claude-sonnet-4.6"), "openrouter");
+  assert.equal(normalizeOpenAiRoute("openrouter", "anthropic/claude-opus-4.6"), "openrouter");
 });
 
 test("OpenAI route toggle is visible only for OpenCode GPT models", () => {
-  assert.equal(shouldShowOpenAiRouteToggle("opencode", "openai/gpt-5.5"), true);
-  assert.equal(shouldShowOpenAiRouteToggle("opencode", "anthropic/claude-sonnet-4.6"), false);
-  assert.equal(shouldShowOpenAiRouteToggle("opencode", "anthropic/claude-opus-4.6"), false);
-  assert.equal(shouldShowOpenAiRouteToggle("qmd", "openai/gpt-5.5"), false);
+  assert.equal(shouldShowOpenAiRouteToggle("openai/gpt-5.5"), true);
+  assert.equal(shouldShowOpenAiRouteToggle("anthropic/claude-sonnet-4.6"), false);
+  assert.equal(shouldShowOpenAiRouteToggle("anthropic/claude-opus-4.6"), false);
 });
 
 test("normalizeOpencodeModel upgrades legacy GPT-5 even when explicitly requested", () => {
@@ -272,4 +316,19 @@ test("toDisplayMessages prefers persisted assistant stream state over resolved f
   );
 
   assert.equal(messages[0]?.stream?.reasoningText, "Persisted trace");
+});
+
+
+test("new drafts use OpenRouter while saved subscription choices survive hydration", () => {
+  assert.equal(createDraftThreadSettings().openAiRoute, "openrouter");
+  withMockWindow(() => {
+    assert.equal(loadLocalChatUiState("alice@example.com").draftThreadSettings.openAiRoute, "openrouter");
+    saveLocalChatUiState("alice@example.com", {
+      selectedThreadId: null,
+      draftQuestion: "Saved draft",
+      draftThreadSettings: { ...createDraftThreadSettings(), openAiRoute: "subscription" },
+      sidebarCollapsed: false
+    });
+    assert.equal(loadLocalChatUiState("alice@example.com").draftThreadSettings.openAiRoute, "subscription");
+  });
 });

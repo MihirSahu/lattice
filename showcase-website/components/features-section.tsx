@@ -6,7 +6,7 @@ export default function FeaturesSection() {
           <div className="section-label">Features</div>
           <h2 className="section-h2">Built for personal, private knowledge work.</h2>
           <p className="section-sub">
-            Every component runs in your own infrastructure — nothing leaves your network without your intent.
+            Your vault mirror and chat history stay on your infrastructure. OpenCode sends query context to your selected model provider.
           </p>
         </div>
         <div className="features-grid">
@@ -19,13 +19,13 @@ export default function FeaturesSection() {
                 <path d="M12 17h.01" />
               </svg>
             </div>
-            <div className="feature-title">Dual Query Engines</div>
+            <div className="feature-title">Grounded Vault Answers</div>
             <div className="feature-desc">
-              Ask questions against your vault using QMD&apos;s fast vector retrieval, or switch to
-              OpenCode-backed grounded answers with your preferred LLM.
+              Ask questions about your mirrored vault with OpenCode and your preferred model.
+              Keep answers grounded in your notes with source citations.
             </div>
             <div className="feature-tags">
-              <span className="feature-tag">QMD</span>
+              <span className="feature-tag">OpenCode</span>
               <span className="feature-tag">Claude Sonnet 4.6</span>
               <span className="feature-tag">GPT-5</span>
               <span className="feature-tag">Gemini 2.5</span>
@@ -45,7 +45,7 @@ export default function FeaturesSection() {
               conversations, and keep source citations alongside each answer.
             </div>
             <div className="feature-tags">
-              <span className="feature-tag">localStorage</span>
+              <span className="feature-tag">SQLite history</span>
               <span className="feature-tag">Markdown rendering</span>
               <span className="feature-tag">Source citations</span>
             </div>
@@ -60,8 +60,8 @@ export default function FeaturesSection() {
             </div>
             <div className="feature-title">Secure by Default</div>
             <div className="feature-desc">
-              Only the Next.js UI is reachable externally through Cloudflare Tunnel and Access. QMD,
-              OpenCode, and the sync worker are locked to the internal Docker network.
+              Only the Next.js UI is reachable externally through Cloudflare Tunnel and Access.
+              OpenCode and the sync worker are locked to the internal Docker network.
             </div>
             <div className="feature-tags">
               <span className="feature-tag">Cloudflare Tunnel</span>

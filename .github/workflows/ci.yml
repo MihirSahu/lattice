@@ -1,0 +1,33 @@
+name: CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+      - run: corepack enable && corepack prepare pnpm@11.1.2 --activate
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm build
+      - run: make lint-shell
+      - run: docker compose --env-file .env.example -f infra/docker/docker-compose.yml config --quiet
+  containers:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dockerfile:
+          - apps/web/Dockerfile
+          - services/opencode-query/Dockerfile
+          - services/sync-worker/Dockerfile
+          - services/scheduler/Dockerfile
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker build -f "${{ matrix.dockerfile }}" .

@@ -10,8 +10,6 @@ import type { OpencodeModelId, OpencodeModelOption, OpencodeOpenAiRoute, SourceF
 type MobileChatSettingsProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  selectedEngine: "qmd" | "opencode";
-  onEngineChange: (value: "qmd" | "opencode") => void;
   selectedModel: OpencodeModelId;
   onModelChange: (value: OpencodeModelId) => void;
   selectedOpenAiRoute: OpencodeOpenAiRoute;
@@ -27,8 +25,6 @@ type MobileChatSettingsProps = {
 export function MobileChatSettings({
   open,
   onOpenChange,
-  selectedEngine,
-  onEngineChange,
   selectedModel,
   onModelChange,
   selectedOpenAiRoute,
@@ -41,31 +37,18 @@ export function MobileChatSettings({
   loadingAnswer
 }: MobileChatSettingsProps) {
   const selectedModelOption = opencodeModels.find((model) => model.id === selectedModel) ?? opencodeModels[0] ?? null;
-  const showOpenAiRouteToggle = shouldShowOpenAiRouteToggle(selectedEngine, selectedModel);
+  const showOpenAiRouteToggle = shouldShowOpenAiRouteToggle(selectedModel);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="lg:hidden">
         <SheetHeader>
           <SheetTitle>Chat settings</SheetTitle>
-          <SheetDescription>Choose the engine, model, and source scope for this conversation.</SheetDescription>
+          <SheetDescription>Choose the model and source scope for this conversation.</SheetDescription>
         </SheetHeader>
 
         <div className="mt-6 space-y-5">
-          <div className="space-y-2">
-            <p className="text-[12px] font-[600] uppercase tracking-[0.12em] text-[var(--text-quaternary)]">Engine</p>
-            <Select value={selectedEngine} onValueChange={(value) => onEngineChange(value as "qmd" | "opencode")} disabled={loadingAnswer}>
-              <SelectTrigger className="linear-subsurface h-11 w-full min-w-0 rounded-2xl px-4 shadow-none">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="qmd">QMD</SelectItem>
-                <SelectItem value="opencode">OpenCode</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {selectedEngine === "opencode" && opencodeModels.length > 0 ? (
+          {opencodeModels.length > 0 ? (
             <div className="space-y-2">
               <p className="text-[12px] font-[600] uppercase tracking-[0.12em] text-[var(--text-quaternary)]">Model</p>
               <Select value={selectedModel} onValueChange={(value) => onModelChange(value as OpencodeModelId)} disabled={loadingAnswer}>

@@ -4,6 +4,7 @@ import { access } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { listSourceFolders } from "./source-folders.js";
 import { hasOpenAiAuth } from "./openai-auth.js";
 import { terminateProcessWithGrace } from "./process-lifecycle.js";
 import {
@@ -378,6 +379,11 @@ const server = createServer(async (req, res) => {
         providerConfigured,
         model: defaultModel
       });
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/sources") {
+      respond(res, 200, { ok: true, folders: await listSourceFolders(vaultRoot) });
       return;
     }
 

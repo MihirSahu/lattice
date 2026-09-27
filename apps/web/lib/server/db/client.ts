@@ -14,7 +14,7 @@ const globalForChatDb = globalThis as typeof globalThis & {
   __latticeChatDb?: ChatDatabase;
 };
 
-function createChatDatabase(dbPath: string): ChatDatabase {
+export function createChatDatabase(dbPath: string): ChatDatabase {
   mkdirSync(dirname(dbPath), { recursive: true });
 
   const sqlite = new Database(dbPath);

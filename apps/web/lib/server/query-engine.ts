@@ -47,7 +47,7 @@ export async function executeQueryEngineRequest(
 ): Promise<QueryEngineResult> {
   const requestId = randomUUID().slice(0, 8);
   const startedAt = Date.now();
-  const serviceUrl = input.engine === "opencode" ? config.opencodeServiceUrl : config.qmdServiceUrl;
+  const serviceUrl = config.opencodeServiceUrl;
   const effectiveLimit = resolveQueryLimit(input.limit, config.defaultQueryLimit);
 
   console.log(
@@ -55,26 +55,26 @@ export async function executeQueryEngineRequest(
   );
 
   try {
-    options.onEvent?.({ type: "status", message: `Starting ${input.engine === "opencode" ? "OpenCode" : "QMD"} query.` });
+    options.onEvent?.({ type: "status", message: "Starting OpenCode query." });
 
     const response = await fetch(`${serviceUrl}/query`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        accept: options.onEvent && input.engine === "opencode" ? "application/x-ndjson" : "application/json",
+        accept: options.onEvent ? "application/x-ndjson" : "application/json",
         "x-request-id": requestId
       },
       body: JSON.stringify({
         question: input.question,
         folder: input.folder || undefined,
-        model: input.engine === "opencode" ? input.model : undefined,
-        openAiRoute: input.engine === "opencode" ? input.openAiRoute : undefined,
+        model: input.model,
+        openAiRoute: input.openAiRoute,
         limit: effectiveLimit
       }),
       cache: "no-store"
     });
 
-    if (options.onEvent && input.engine === "opencode" && response.ok) {
+    if (options.onEvent && response.ok) {
       let finalResponse: AskResponse | null = null;
       let streamError: AskErrorResponse | null = null;
 

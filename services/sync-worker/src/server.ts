@@ -27,18 +27,8 @@ type SyncStatus = {
   error: string | null;
 };
 
-type IndexStatus = {
-  lastUpdateAt: string | null;
-  lastEmbedAt: string | null;
-  embeddingsPending: number;
-  lastEmbedStrategy: string;
-  lastUpdateSummary: Record<string, string> | null;
-  lastEmbedSummary: Record<string, string> | null;
-};
-
 type ServicesStatus = {
   syncWorkerHealthy: boolean;
-  qmdHealthy: boolean;
   opencodeHealthy: boolean;
 };
 
@@ -46,7 +36,6 @@ type StatusPayload = {
   app: string;
   currentRun: CurrentRunStatus;
   sync: SyncStatus;
-  index: IndexStatus;
   services: ServicesStatus;
 };
 
@@ -64,9 +53,7 @@ const port = Number(process.env.SYNC_WORKER_PORT || 4000);
 const statusDir = process.env.STATUS_DIR || "/var/lib/lattice";
 const statusFile = path.join(statusDir, "status.json");
 const logDir = process.env.LOG_DIR || "/var/log/lattice";
-const qmdServiceUrl = process.env.QMD_SERVICE_URL || "http://qmd:8181";
 const opencodeQueryServiceUrl = process.env.OPENCODE_QUERY_SERVICE_URL || "http://opencode-query:8282";
-const embedStrategy = process.env.QMD_EMBED_STRATEGY || "on-change";
 
 let runningJob: RunningJob | null = null;
 
@@ -92,17 +79,8 @@ function initialStatus(): StatusPayload {
       logPath: null,
       error: null
     },
-    index: {
-      lastUpdateAt: null,
-      lastEmbedAt: null,
-      embeddingsPending: 0,
-      lastEmbedStrategy: embedStrategy,
-      lastUpdateSummary: null,
-      lastEmbedSummary: null
-    },
     services: {
       syncWorkerHealthy: true,
-      qmdHealthy: false,
       opencodeHealthy: false
     }
   };
@@ -118,7 +96,18 @@ async function loadStatus(): Promise<StatusPayload> {
 
   try {
     const raw = await readFile(statusFile, "utf8");
-    return JSON.parse(raw) as StatusPayload;
+    const saved = JSON.parse(raw) as StatusPayload;
+    // Rebuild the payload so retired index/embedding fields are not persisted again.
+    const defaults = initialStatus();
+    return {
+      app: defaults.app,
+      currentRun: { ...defaults.currentRun, ...saved.currentRun },
+      sync: { ...defaults.sync, ...saved.sync },
+      services: {
+        syncWorkerHealthy: saved.services?.syncWorkerHealthy ?? true,
+        opencodeHealthy: saved.services?.opencodeHealthy ?? false
+      }
+    };
   } catch {
     const status = initialStatus();
     await writeStatus(status);
@@ -224,39 +213,6 @@ function runScript(scriptPath: string, logFilePath: string): Promise<SummaryMap>
   });
 }
 
-function shouldRunEmbed(strategy: string, changedFiles: number) {
-  if (strategy === "always") {
-    return true;
-  }
-
-  if (strategy === "never" || strategy === "manual") {
-    return false;
-  }
-
-  return changedFiles > 0;
-}
-
-async function refreshQmd() {
-  try {
-    const response = await fetch(`${qmdServiceUrl}/admin/reload`, {
-      method: "POST"
-    });
-
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
-
-async function resolveQmdHealth() {
-  try {
-    const response = await fetch(`${qmdServiceUrl}/health`);
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
-
 async function resolveOpencodeHealth() {
   try {
     const response = await fetch(`${opencodeQueryServiceUrl}/health`);
@@ -295,21 +251,7 @@ async function executeRun(trigger: RunTrigger) {
     const changedFiles = Number(syncSummary.CHANGED_FILES || 0);
     const fileCount = Number(syncSummary.MIRROR_FILE_COUNT || 0);
 
-    const updateSummary = await runScript("/app/scripts/run-qmd-update.sh", logFilePath);
-    const needsEmbedding = Number(updateSummary.NEEDS_EMBEDDING || changedFiles || 0);
-
-    let embedRan = false;
-    let embedSummary: SummaryMap | null = null;
-    let embeddingsPending = needsEmbedding;
-
-    if (shouldRunEmbed(embedStrategy, changedFiles)) {
-      embedSummary = await runScript("/app/scripts/run-qmd-embed.sh", logFilePath);
-      embedRan = true;
-      embeddingsPending = 0;
-    }
-
     const finishedAt = new Date().toISOString();
-    const qmdHealthy = await refreshQmd();
     const opencodeHealthy = await resolveOpencodeHealth();
 
     await mutateStatus((status) => {
@@ -330,17 +272,6 @@ async function executeRun(trigger: RunTrigger) {
       status.sync.deleteEnabled = syncSummary.SYNC_DELETE_ENABLED === "true";
       status.sync.logPath = logFilePath;
       status.sync.error = null;
-      status.index.lastUpdateAt = finishedAt;
-      status.index.lastUpdateSummary = updateSummary;
-      status.index.lastEmbedStrategy = embedStrategy;
-      status.index.embeddingsPending = embeddingsPending;
-
-      if (embedRan) {
-        status.index.lastEmbedAt = finishedAt;
-        status.index.lastEmbedSummary = embedSummary;
-      }
-
-      status.services.qmdHealthy = qmdHealthy;
       status.services.opencodeHealthy = opencodeHealthy;
       return status;
     });
@@ -380,11 +311,9 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url, `http://127.0.0.1:${port}`);
 
     if (req.method === "GET" && url.pathname === "/health") {
-      const qmdHealthy = await resolveQmdHealth();
       const opencodeHealthy = await resolveOpencodeHealth();
       const status = await mutateStatus((current) => {
         current.services.syncWorkerHealthy = true;
-        current.services.qmdHealthy = qmdHealthy;
         current.services.opencodeHealthy = opencodeHealthy;
         return current;
       });
@@ -393,11 +322,9 @@ const server = createServer(async (req, res) => {
     }
 
     if (req.method === "GET" && url.pathname === "/status") {
-      const qmdHealthy = await resolveQmdHealth();
       const opencodeHealthy = await resolveOpencodeHealth();
       const status = await mutateStatus((current) => {
         current.services.syncWorkerHealthy = true;
-        current.services.qmdHealthy = qmdHealthy;
         current.services.opencodeHealthy = opencodeHealthy;
         return current;
       });
@@ -436,13 +363,12 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(port, "0.0.0.0", async () => {
-  const qmdHealthy = await resolveQmdHealth();
   const opencodeHealthy = await resolveOpencodeHealth();
   await mutateStatus((status) => {
     status.services.syncWorkerHealthy = true;
-    status.services.qmdHealthy = qmdHealthy;
     status.services.opencodeHealthy = opencodeHealthy;
     return status;
   });
-  console.log(`Sync worker listening on :${port}`);
+  const address = server.address();
+  console.log(`Sync worker listening on :${typeof address === "object" && address ? address.port : port}`);
 });

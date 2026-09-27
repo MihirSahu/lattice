@@ -150,7 +150,7 @@ export function ChatMessageList({ messages }: ChatMessageListProps) {
             </div>
 
             <div className="flex flex-wrap items-center gap-2 border-t border-[var(--border-subtle)] pt-4 text-[13px] text-[var(--text-tertiary)]">
-              <span>{answer.backend === "opencode" ? "OpenCode" : "QMD"}</span>
+              <span>{answer.backend === "opencode" ? "OpenCode" : "Archived answer"}</span>
               <span aria-hidden="true">·</span>
               <span>{answer.folder ?? "All Sources"}</span>
               {answer.backend === "opencode" && answer.model ? <span aria-hidden="true">·</span> : null}

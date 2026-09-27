@@ -233,3 +233,17 @@ test("extractAnswer still returns text answers", () => {
     "The answer."
   );
 });
+
+
+test("default OpenAI runtime uses API credentials without reading OAuth auth", async () => {
+  const runtime = await resolveOpenCodeRuntimeConfig("openai/gpt-5.5", undefined, {
+    OPENROUTER_API_KEY: "openrouter-secret",
+    OPENCODE_OPENAI_AUTH_FILE: "/nonexistent/auth.json"
+  });
+  assert.equal(runtime.modelSelection.providerID, "openrouter");
+  assert.equal(runtime.openAiAuth, null);
+  await assert.rejects(
+    () => resolveOpenCodeRuntimeConfig("openai/gpt-5.5", undefined, {}),
+    /OPENROUTER_API_KEY is not configured/
+  );
+});

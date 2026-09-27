@@ -7,12 +7,10 @@ services:
       dockerfile: apps/web/Dockerfile
     restart: unless-stopped
     depends_on:
-      - qmd
       - opencode-query
       - sync-worker
     environment:
       WEB_SYNC_WORKER_URL: ${WEB_SYNC_WORKER_URL}
-      WEB_QMD_SERVICE_URL: ${WEB_QMD_SERVICE_URL}
       WEB_OPENCODE_SERVICE_URL: ${WEB_OPENCODE_SERVICE_URL}
       WEB_DEFAULT_QUERY_LIMIT: ${WEB_DEFAULT_QUERY_LIMIT}
       CHAT_DB_PATH: ${CHAT_DB_PATH}
@@ -25,31 +23,6 @@ services:
       - type: bind
         source: ${LATTICE_DATA_ROOT}/chat
         target: /var/lib/lattice/chat
-
-  qmd:
-    build:
-      context: ../..
-      dockerfile: services/qmd/Dockerfile
-    restart: unless-stopped
-    expose:
-      - "8181"
-    environment:
-      QMD_PORT: ${QMD_PORT}
-      QMD_DB_PATH: ${QMD_DB_PATH}
-      QMD_COLLECTION: ${QMD_COLLECTION}
-      QMD_RESULT_LIMIT: ${QMD_RESULT_LIMIT}
-      VAULT_MIRROR_DIR: ${VAULT_MIRROR_DIR}
-      XDG_CACHE_HOME: /var/cache/qmd
-    volumes:
-      - type: bind
-        source: ${LATTICE_DATA_ROOT}/vault
-        target: /srv/vault-mirror
-      - type: bind
-        source: ${LATTICE_DATA_ROOT}/qmd
-        target: /var/lib/qmd
-      - type: bind
-        source: ${LATTICE_DATA_ROOT}/qmd-cache
-        target: /var/cache/qmd
 
   opencode-query:
     build:
@@ -73,11 +46,6 @@ services:
       - type: bind
         source: ${LATTICE_DATA_ROOT}/vault
         target: /srv/vault-mirror
-      - type: bind
-        source: ${OPENCODE_OPENAI_AUTH_HOST_FILE}
-        target: /app/opencode-data/opencode/auth.json
-        bind:
-          create_host_path: false
 
   sync-worker:
     build:
@@ -96,25 +64,14 @@ services:
       VAULT_MIRROR_DIR: ${VAULT_MIRROR_DIR}
       STATUS_DIR: ${STATUS_DIR}
       LOG_DIR: ${LOG_DIR}
-      QMD_DB_PATH: ${QMD_DB_PATH}
-      QMD_COLLECTION: ${QMD_COLLECTION}
-      QMD_EMBED_STRATEGY: ${QMD_EMBED_STRATEGY}
-      QMD_SERVICE_URL: http://qmd:8181
       OPENCODE_QUERY_SERVICE_URL: http://opencode-query:8282
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN}
-      XDG_CACHE_HOME: /var/cache/qmd
     volumes:
       - type: bind
         source: ${LATTICE_DATA_ROOT}/vault
         target: /srv/vault-mirror
-      - type: bind
-        source: ${LATTICE_DATA_ROOT}/qmd
-        target: /var/lib/qmd
-      - type: bind
-        source: ${LATTICE_DATA_ROOT}/qmd-cache
-        target: /var/cache/qmd
       - type: bind
         source: ${LATTICE_DATA_ROOT}/status
         target: /var/lib/lattice
@@ -134,7 +91,7 @@ services:
       SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL_SECONDS}
 
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:2026.9.3
     restart: unless-stopped
     profiles:
       - cloudflare

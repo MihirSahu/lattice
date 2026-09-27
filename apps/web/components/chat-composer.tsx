@@ -17,8 +17,6 @@ type ChatComposerProps = {
   docked?: boolean;
   draftQuestion: string;
   onDraftQuestionChange: (value: string) => void;
-  selectedEngine: "qmd" | "opencode";
-  onEngineChange: (value: "qmd" | "opencode") => void;
   selectedModel: OpencodeModelId;
   onModelChange: (value: OpencodeModelId) => void;
   selectedOpenAiRoute: OpencodeOpenAiRoute;
@@ -39,8 +37,6 @@ export function ChatComposer({
   docked = false,
   draftQuestion,
   onDraftQuestionChange,
-  selectedEngine,
-  onEngineChange,
   selectedModel,
   onModelChange,
   selectedOpenAiRoute,
@@ -58,7 +54,7 @@ export function ChatComposer({
 }: ChatComposerProps) {
   const mobileTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const selectedModelOption = opencodeModels.find((model) => model.id === selectedModel) ?? opencodeModels[0] ?? null;
-  const showOpenAiRouteToggle = shouldShowOpenAiRouteToggle(selectedEngine, selectedModel);
+  const showOpenAiRouteToggle = shouldShowOpenAiRouteToggle(selectedModel);
 
   useEffect(() => {
     const textarea = mobileTextareaRef.current;
@@ -154,26 +150,7 @@ export function ChatComposer({
 
           <InputGroupFooter className={cn("hidden lg:flex", docked ? "chat-composer-footer" : undefined)}>
             <div className="flex flex-wrap items-center gap-3 text-[var(--text-tertiary)]">
-              <Select
-                value={selectedEngine}
-                onValueChange={(value) => onEngineChange(value as "qmd" | "opencode")}
-                disabled={loadingAnswer}
-              >
-                <SelectTrigger
-                  className={cn(
-                    "linear-pill w-fit max-w-[220px] border-[var(--border-strong)] px-4 py-2 font-[400] shadow-none transition-[width,padding,background-color,border-color,color] duration-300 ease-out",
-                    docked ? "chat-composer-pill h-9" : "bg-[var(--bg-page)]"
-                  )}
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="min-w-[180px]">
-                  <SelectItem value="qmd">QMD</SelectItem>
-                  <SelectItem value="opencode">OpenCode</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {selectedEngine === "opencode" && opencodeModels.length > 0 ? (
+              {opencodeModels.length > 0 ? (
                 <Select
                   value={selectedModel}
                   onValueChange={(value) => onModelChange(value as OpencodeModelId)}
@@ -268,8 +245,6 @@ export function ChatComposer({
         <MobileChatSettings
           open={mobileSettingsOpen}
           onOpenChange={onMobileSettingsOpenChange}
-          selectedEngine={selectedEngine}
-          onEngineChange={onEngineChange}
           selectedModel={selectedModel}
           onModelChange={onModelChange}
           selectedOpenAiRoute={selectedOpenAiRoute}

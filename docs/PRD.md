@@ -1,12 +1,10 @@
-# Lattice PRD
+# Lattice product scope
 
-This repository implements the Lattice product definition:
+- Self-hosted personal knowledge interface over an S3-backed Obsidian vault mirror.
+- OpenCode answers grounded in selected vault files, with streamed progress and citations.
+- API-backed models by default, with optional ChatGPT subscription authentication.
+- Persistent chat history and per-user isolation.
+- Scheduled and manual read-only S3 sync with status and logs.
+- Secure browser access through Cloudflare Tunnel and Access.
 
-- self-hosted personal knowledge interface
-- S3-backed Obsidian vault mirror
-- automatic QMD updates after sync
-- secure remote browser access through Cloudflare Tunnel and Access
-- manual sync and reindex actions from the web UI
-
-The canonical source for the full requirements is the user-provided PRD captured in the project history. Supporting implementation detail lives in the architecture and deployment docs in this directory.
-
+Implementation details live in the architecture and deployment documents. Local embedding and indexing are not part of the application.

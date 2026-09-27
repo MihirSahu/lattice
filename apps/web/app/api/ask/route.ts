@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     const result = await executeQueryEngineRequest({
       question: parsed.question,
       folder: parsed.folder,
-      engine: parsed.engine ?? "qmd",
+      engine: parsed.engine ?? "opencode",
       model: parsed.model,
       openAiRoute: parsed.openAiRoute,
       limit: parsed.limit

@@ -1,0 +1,18 @@
+packages:
+  - apps/*
+  - services/*
+  - packages/*
+  - showcase-website
+
+# Never install or change dependencies as a side effect of running a script.
+verifyDepsBeforeRun: false
+injectWorkspacePackages: true
+allowBuilds:
+  better-sqlite3: true
+  esbuild: true
+  opencode-ai: true
+  sharp: true
+
+# Next 15 pins an older PostCSS; use the patched compatible 8.x release.
+overrides:
+  next>postcss: 8.5.28

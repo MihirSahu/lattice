@@ -1,16 +1,12 @@
+import { OPENCODE_MODEL_IDS, OPENAI_ROUTES } from "@lattice/model-catalog";
 import { z } from "zod";
 
-export const queryEngineSchema = z.enum(["qmd", "opencode"]);
+export const queryEngineSchema = z.literal("opencode");
 export const chatRoleSchema = z.enum(["user", "assistant"]);
 export const persistedChatMessageStatusSchema = z.enum(["complete", "error"]);
-export const OPENCODE_MODEL_IDS = [
-  "anthropic/claude-sonnet-4.6",
-  "anthropic/claude-opus-4.6",
-  "openai/gpt-5.5",
-  "google/gemini-2.5-pro"
-] as const;
+export { OPENCODE_MODEL_IDS } from "@lattice/model-catalog";
 export const opencodeModelIdSchema = z.enum(OPENCODE_MODEL_IDS);
-export const opencodeOpenAiRouteSchema = z.enum(["subscription", "openrouter"]);
+export const opencodeOpenAiRouteSchema = z.enum(OPENAI_ROUTES);
 export const opencodeModelProviderSchema = z.enum(["anthropic", "openai", "google"]);
 export const opencodeModelIconKeySchema = z.enum(["claude", "openai", "gemini"]);
 export const opencodeModelOptionSchema = z.object({
@@ -49,7 +45,8 @@ export const askRequestSchema = z.object({
 
 export const askResponseSchema = z.object({
   ok: z.literal(true),
-  backend: queryEngineSchema,
+  // Retain the retired backend identifier only when reading historical answers.
+  backend: z.enum(["opencode", "qmd"]),
   mode: z.string(),
   provider: z.string().optional(),
   model: z.string().optional(),
@@ -90,24 +87,14 @@ export const statusSchema = z.object({
     logPath: z.string().nullable(),
     error: z.string().nullable()
   }),
-  index: z.object({
-    lastUpdateAt: z.string().nullable(),
-    lastEmbedAt: z.string().nullable(),
-    embeddingsPending: z.number(),
-    lastEmbedStrategy: z.string(),
-    lastUpdateSummary: z.record(z.string(), z.string()).nullable(),
-    lastEmbedSummary: z.record(z.string(), z.string()).nullable()
-  }),
   services: z.object({
     syncWorkerHealthy: z.boolean(),
-    qmdHealthy: z.boolean(),
     opencodeHealthy: z.boolean()
   })
 });
 
 export const sourceFoldersResponseSchema = z.object({
   ok: z.literal(true),
-  collection: z.string(),
   folders: z.array(sourceFolderSchema)
 });
 

@@ -1,3 +1,10 @@
+import {
+  DEFAULT_MODEL_ID,
+  DEFAULT_OPENAI_ROUTE,
+  isAllowedModelId,
+  isOpenAiRoute
+} from "@lattice/model-catalog";
+export { DEFAULT_OPENAI_ROUTE } from "@lattice/model-catalog";
 import type {
   ChatMessage,
   ChatThreadDetail,
@@ -16,16 +23,8 @@ const LEGACY_CHAT_UI_STORAGE_KEY = "lattice-chat-ui-v2";
 export const CHAT_CACHE_STORAGE_KEY_PREFIX = "lattice-chat-cache-v3";
 export const CHAT_UI_STORAGE_KEY_PREFIX = "lattice-chat-ui-v3";
 export const DEFAULT_THREAD_TITLE = "New chat";
-export const FALLBACK_OPENCODE_MODEL: OpencodeModelId = "openai/gpt-5.5";
-export const DEFAULT_OPENAI_ROUTE: OpencodeOpenAiRoute = "subscription";
+export const FALLBACK_OPENCODE_MODEL: OpencodeModelId = DEFAULT_MODEL_ID;
 export const LEGACY_DEFAULT_OPENCODE_MODELS = ["openai/gpt-5"] as const;
-const SUPPORTED_OPENAI_ROUTES: OpencodeOpenAiRoute[] = ["subscription", "openrouter"];
-const SUPPORTED_OPENCODE_MODEL_IDS: OpencodeModelId[] = [
-  "anthropic/claude-sonnet-4.6",
-  "anthropic/claude-opus-4.6",
-  "openai/gpt-5.5",
-  "google/gemini-2.5-pro"
-];
 
 export type PendingAskOverlay = {
   threadId: string | null;
@@ -90,7 +89,7 @@ export function createDraftThreadSettings(model: OpencodeModelId = FALLBACK_OPEN
 }
 
 export function isSupportedOpencodeModel(value: unknown): value is OpencodeModelId {
-  return typeof value === "string" && SUPPORTED_OPENCODE_MODEL_IDS.includes(value as OpencodeModelId);
+  return isAllowedModelId(value);
 }
 
 export function isLegacyDefaultOpencodeModel(value: unknown): boolean {
@@ -102,7 +101,7 @@ export function isOpenAiOpencodeModel(value: unknown): value is OpencodeModelId 
 }
 
 export function isSupportedOpenAiRoute(value: unknown): value is OpencodeOpenAiRoute {
-  return typeof value === "string" && SUPPORTED_OPENAI_ROUTES.includes(value as OpencodeOpenAiRoute);
+  return isOpenAiRoute(value);
 }
 
 export function normalizeOpenAiRoute(value: unknown, model: unknown): OpencodeOpenAiRoute {
@@ -113,8 +112,8 @@ export function normalizeOpenAiRoute(value: unknown, model: unknown): OpencodeOp
   return isSupportedOpenAiRoute(value) ? value : DEFAULT_OPENAI_ROUTE;
 }
 
-export function shouldShowOpenAiRouteToggle(engine: unknown, model: unknown) {
-  return engine === "opencode" && isOpenAiOpencodeModel(model);
+export function shouldShowOpenAiRouteToggle(model: unknown) {
+  return isOpenAiOpencodeModel(model);
 }
 
 export function normalizeOpencodeModel(
@@ -144,6 +143,14 @@ function getDefaultUiState(defaultModel: OpencodeModelId): LocalChatUiState {
   };
 }
 
+// Cached threads from the retired engine remain readable and continue with the API default.
+function normalizeCachedThread<T extends ChatThreadSummary>(thread: T): T {
+  if ((thread.engine as string) !== "qmd") {
+    return thread;
+  }
+  return { ...thread, engine: "opencode", model: DEFAULT_MODEL_ID, openAiRoute: DEFAULT_OPENAI_ROUTE };
+}
+
 export function loadLocalChatCache(userEmail: string): LocalChatCacheSnapshot | null {
   const rawValue = getStorageItem(getChatCacheStorageKey(userEmail));
 
@@ -159,8 +166,8 @@ export function loadLocalChatCache(userEmail: string): LocalChatCacheSnapshot | 
     }
 
     return {
-      threadSummaries: parsed.threadSummaries as ChatThreadSummary[],
-      lastThreadDetail: (parsed.lastThreadDetail as ChatThreadDetail | null) ?? null,
+      threadSummaries: parsed.threadSummaries.map((thread) => normalizeCachedThread(thread)),
+      lastThreadDetail: parsed.lastThreadDetail ? normalizeCachedThread(parsed.lastThreadDetail) : null,
       cachedAt: typeof parsed.cachedAt === "string" ? parsed.cachedAt : null
     };
   } catch {
@@ -184,12 +191,13 @@ export function loadLocalChatUiState(
 
   try {
     const parsed = JSON.parse(rawValue) as Partial<LocalChatUiState>;
+    const legacyQmdDraft = (parsed.draftThreadSettings?.engine as string | undefined) === "qmd";
     const draftThreadSettings = isObject(parsed.draftThreadSettings)
       ? {
-          engine: (parsed.draftThreadSettings.engine === "qmd" ? "qmd" : "opencode") as DraftThreadSettings["engine"],
+          engine: "opencode" as const,
           folder: typeof parsed.draftThreadSettings.folder === "string" ? parsed.draftThreadSettings.folder : "",
-          model: normalizeOpencodeModel(parsed.draftThreadSettings.model, defaultModel),
-          openAiRoute: normalizeOpenAiRoute(
+          model: legacyQmdDraft ? DEFAULT_MODEL_ID : normalizeOpencodeModel(parsed.draftThreadSettings.model, defaultModel),
+          openAiRoute: legacyQmdDraft ? DEFAULT_OPENAI_ROUTE : normalizeOpenAiRoute(
             parsed.draftThreadSettings.openAiRoute,
             normalizeOpencodeModel(parsed.draftThreadSettings.model, defaultModel)
           )

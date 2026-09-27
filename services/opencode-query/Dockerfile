@@ -1,24 +1,29 @@
-FROM node:20-bookworm-slim
-
+FROM node:24-bookworm-slim AS builder
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable && corepack prepare pnpm@11.1.2 --activate
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-
-# The npm launcher uses spawnSync, so killing it does not terminate its native
-# OpenCode child. Point the SDK at the native binary so close() owns the server PID.
-RUN npm install -g opencode-ai@1.14.26 \
-  && test -x /usr/local/lib/node_modules/opencode-ai/bin/.opencode \
-  && ln -sfn /usr/local/lib/node_modules/opencode-ai/bin/.opencode /usr/local/bin/opencode
-RUN mkdir -p /app/opencode-data/opencode
-
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/web/package.json ./apps/web/package.json
 COPY services/opencode-query/package.json ./services/opencode-query/package.json
-COPY services/opencode-query/tsconfig.json ./services/opencode-query/tsconfig.json
-RUN cd services/opencode-query && npm install
-
+COPY services/sync-worker/package.json ./services/sync-worker/package.json
+COPY showcase-website/package.json ./showcase-website/package.json
+COPY packages ./packages
+RUN pnpm --filter lattice-opencode-query... install --frozen-lockfile
 COPY services/opencode-query ./services/opencode-query
-RUN cd services/opencode-query && npm run build
+RUN pnpm --filter lattice-opencode-query build && pnpm --filter lattice-opencode-query deploy --prod /prod/service
 
+FROM node:24-bookworm-slim AS runner
+WORKDIR /app
 ENV NODE_ENV=production
+COPY --from=builder /prod/service ./services/opencode-query
+# Bypass the npm launcher: the SDK must own the native server PID for shutdown.
+RUN test -x /app/services/opencode-query/node_modules/opencode-ai/bin/opencode.exe \
+  && ln -s /app/services/opencode-query/node_modules/opencode-ai/bin/opencode.exe /usr/local/bin/opencode \
+  && mkdir -p /app/opencode-data/opencode
 ENV OPENCODE_QUERY_PORT=8282
-
 EXPOSE 8282
-
 CMD ["node", "services/opencode-query/dist/server.js"]

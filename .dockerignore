@@ -9,3 +9,7 @@ node_modules
 **/node_modules
 **/dist
 **/.next
+
+opencode-auth.json
+data
+.conductor

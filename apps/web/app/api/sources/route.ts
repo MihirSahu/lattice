@@ -4,7 +4,7 @@ import { sourceFoldersResponseSchema } from "@/lib/schemas";
 
 export async function GET() {
   try {
-    const response = await fetch(`${config.qmdServiceUrl}/sources`, {
+    const response = await fetch(`${config.opencodeServiceUrl}/sources`, {
       cache: "no-store"
     });
     const json = await response.json();

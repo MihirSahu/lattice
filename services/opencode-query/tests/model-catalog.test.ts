@@ -8,7 +8,7 @@ test("OpenAI models use the native OpenAI provider", () => {
     modelID: "gpt-5.5",
     configModel: "openai/gpt-5.5"
   });
-  assert.equal(toOpenCodeModelIdentifier("openai/gpt-5.5"), "openai/gpt-5.5");
+  assert.equal(toOpenCodeModelIdentifier("openai/gpt-5.5", "subscription"), "openai/gpt-5.5");
 });
 
 test("OpenAI models can route through OpenRouter", () => {
@@ -34,7 +34,10 @@ test("non-OpenAI models continue to route through OpenRouter", () => {
   assert.equal(toOpenCodeModelIdentifier("google/gemini-2.5-pro"), "openrouter/google/gemini-2.5-pro");
 });
 
-test("invalid OpenAI routes default to subscription", () => {
+test("missing and invalid OpenAI routes default to OpenRouter", () => {
   assert.equal(resolveOpenAiRoute("openrouter"), "openrouter");
-  assert.equal(resolveOpenAiRoute("invalid"), "subscription");
+  assert.equal(resolveOpenAiRoute("invalid"), "openrouter");
+  assert.equal(resolveOpenAiRoute(undefined), "openrouter");
+  assert.equal(resolveOpenAiRoute("subscription"), "subscription");
+  assert.equal(toOpenCodeModelIdentifier("openai/gpt-5.5"), "openrouter/openai/gpt-5.5");
 });

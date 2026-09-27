@@ -13,8 +13,8 @@ export default function ArchSection() {
           <div className="section-label">Architecture</div>
           <h2 className="section-h2">From vault to answer, end to end.</h2>
           <p className="section-sub">
-            Obsidian writes to S3 via Remotely Save. The stack takes it from there — syncing, indexing,
-            and serving — entirely on your hardware.
+            Obsidian writes to S3 via Remotely Save. Lattice mirrors your notes on your hardware
+            and uses OpenCode with your selected model provider to answer questions.
           </p>
         </div>
         <div className="arch-flow">
@@ -63,9 +63,9 @@ export default function ArchSection() {
                 <path d="M3 5V19A9 3 0 0 0 21 19V5" />
                 <path d="M3 12A9 3 0 0 0 21 12" />
               </svg>
-              QMD index
+              OpenCode
             </div>
-            <span className="arch-label">vectors + search</span>
+            <span className="arch-label">grounded vault answers</span>
           </div>
 
           <div className="arch-arrow"><ArrowIcon /></div>

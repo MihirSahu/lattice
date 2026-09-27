@@ -5,14 +5,20 @@
   "version": "0.1.0",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node --experimental-strip-types --test tests/**/*.test.ts",
-    "start": "node dist/server.js"
+    "test": "pnpm run build && node --experimental-strip-types --test tests/**/*.test.ts",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@opencode-ai/sdk": "^1.14.26"
+    "@opencode-ai/sdk": "1.18.32",
+    "@lattice/model-catalog": "workspace:*",
+    "opencode-ai": "1.18.32"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
-    "typescript": "^5.7.2"
+    "@types/node": "24.13.6",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=24 <25"
   }
 }

@@ -17,54 +17,47 @@ function resolveMigrationsFolder() {
   throw new Error("Unable to locate chat migrations folder.");
 }
 
-export async function ensureChatDbMigrated() {
-  if (migrationPromise) {
-    return migrationPromise;
-  }
+export function migrateChatDatabase({ db, sqlite }: ReturnType<typeof getChatDatabase>) {
+  const migrationsFolder = resolveMigrationsFolder();
 
-  migrationPromise = (async () => {
-    const { db, sqlite } = getChatDatabase();
-    const migrationsFolder = resolveMigrationsFolder();
+  db.run(sql`
+    create table if not exists __lattice_migrations (
+      tag text primary key,
+      applied_at text not null
+    )
+  `);
 
-    await db.run(sql`
-      create table if not exists __lattice_migrations (
-        tag text primary key,
-        applied_at text not null
-      )
-    `);
+  const appliedRows = db.all<{ tag: string }>(sql`select tag from __lattice_migrations order by tag asc`);
+  const migrationTags = new Set(appliedRows.map((row) => row.tag));
+  const migrationFiles = readdirSync(migrationsFolder)
+    .filter((entry) => entry.endsWith(".sql"))
+    .sort();
 
-    const appliedRows = db.all(sql`select tag from __lattice_migrations order by tag asc`) as Array<{ tag: string }>;
-    const migrationTags = new Set(appliedRows.map((row) => row.tag));
-    const migrationFiles = readdirSync(migrationsFolder)
-      .filter((entry) => entry.endsWith(".sql"))
-      .sort();
+  for (const migrationFile of migrationFiles) {
+    const tag = migrationFile.replace(/\.sql$/, "");
 
-    for (const migrationFile of migrationFiles) {
-      const tag = migrationFile.replace(/\.sql$/, "");
-
-      if (migrationTags.has(tag)) {
-        continue;
-      }
-
-      const migrationSql = readFileSync(join(migrationsFolder, migrationFile), "utf8");
-      const appliedAt = new Date().toISOString();
-
-      sqlite.exec("begin");
-
-      try {
-        // Migration files contain multiple statements, so they must run through sqlite.exec().
-        sqlite.exec(migrationSql);
-        await db.run(sql`insert into __lattice_migrations (tag, applied_at) values (${tag}, ${appliedAt})`);
-        sqlite.exec("commit");
-      } catch (error) {
-        sqlite.exec("rollback");
-        throw error;
-      }
+    if (migrationTags.has(tag)) {
+      continue;
     }
-  })().catch((error) => {
-    migrationPromise = null;
-    throw error;
-  });
+
+    const migrationSql = readFileSync(join(migrationsFolder, migrationFile), "utf8");
+    const appliedAt = new Date().toISOString();
+
+    sqlite.transaction(() => {
+      // Migration files contain multiple statements, so they must run through sqlite.exec().
+      sqlite.exec(migrationSql);
+      db.run(sql`insert into __lattice_migrations (tag, applied_at) values (${tag}, ${appliedAt})`);
+    })();
+  }
+}
+
+export async function ensureChatDbMigrated() {
+  if (!migrationPromise) {
+    migrationPromise = Promise.resolve().then(() => migrateChatDatabase(getChatDatabase())).catch((error) => {
+      migrationPromise = null;
+      throw error;
+    });
+  }
 
   return migrationPromise;
 }

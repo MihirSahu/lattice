@@ -13,9 +13,7 @@ export const chatThreads = sqliteTable(
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull()
   },
-  (table: any) => ({
-    userEmailUpdatedAtIdx: index("chat_threads_user_email_updated_at_idx").on(table.userEmail, table.updatedAt)
-  })
+  (table) => [index("chat_threads_user_email_updated_at_idx").on(table.userEmail, table.updatedAt)]
 );
 
 export const chatMessages = sqliteTable(
@@ -34,9 +32,7 @@ export const chatMessages = sqliteTable(
     errorDetailsJson: text("error_details_json"),
     errorCode: text("error_code")
   },
-  (table: any) => ({
-    threadCreatedAtIdx: index("chat_messages_thread_id_created_at_idx").on(table.threadId, table.createdAt)
-  })
+  (table) => [index("chat_messages_thread_id_created_at_idx").on(table.threadId, table.createdAt)]
 );
 
 export const chatMessageTraces = sqliteTable("chat_message_traces", {

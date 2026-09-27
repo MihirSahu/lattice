@@ -1,235 +1,142 @@
 # Lattice
 
-Lattice is a self-hosted personal knowledge system for mirroring an Obsidian vault from S3 onto a Raspberry Pi, indexing it with QMD, and exposing a secure web UI for grounded retrieval.
+Lattice is a self-hosted personal knowledge system. It mirrors an Obsidian vault from S3 and uses OpenCode to answer questions grounded in the mirrored files. Chat history is stored in SQLite.
 
-The repository is the single source of truth for application code, container orchestration, sync scripts, deployment notes, and operational runbooks.
-
-## What It Does
-
-- Pulls a read-only mirror of an Obsidian vault from S3 into a dedicated local directory on the Pi
-- Runs `qmd update` after sync and optionally `qmd embed` based on change strategy
-- Persists vault, QMD index, and status data across restarts
-- Exposes a simple web UI for questions, sources, health, and manual sync
-- Supports both QMD retrieval and an OpenCode-backed grounded query path over the mirrored vault
-- Publishes only the web app through Cloudflare Tunnel and protects it with Cloudflare Access
-- Keeps QMD, OpenCode query, and the sync worker on the internal Docker network only
-
-## Architecture Overview
+## Architecture
 
 ```text
-Obsidian / Remotely Save
-  -> AWS S3 bucket + prefix
-  -> sync-worker container
-  -> local vault mirror volume
-  -> QMD index volume
-  -> qmd service container
-  -> opencode-query service container
-  -> Next.js web app
-  -> Cloudflare Tunnel + Access
-  -> phone / laptop browser
+Obsidian / Remotely Save -> AWS S3 -> sync-worker -> vault mirror
+                                                      |
+                                                opencode-query
+                                                      |
+                                                 Next.js web
+                                                      |
+                                           Cloudflare Tunnel + Access
 ```
 
-Recurring sync is handled inside the container stack. A lightweight scheduler container calls the sync worker at a fixed interval. Host-level systemd is used only to keep Docker Compose up across Raspberry Pi reboots.
+The scheduler triggers S3 sync at a fixed interval. OpenCode reads the mirror directly; no embedding model or search index is required. Only the web application publishes a host port. OpenCode query and sync-worker are internal services.
 
-## Repository Layout
+## Repository layout
 
-```text
-lattice/
-  apps/web/                 Next.js App Router UI and route handlers
-  services/qmd/             Internal QMD-backed retrieval service
-  services/opencode-query/  Internal OpenCode-backed grounded query service
-  services/sync-worker/     Sync + index orchestration API
-  services/scheduler/       Interval trigger container
-  infra/docker/             Docker Compose stack
-  infra/aws/                Read-only IAM policy
-  infra/cloudflare/         Tunnel and Access notes
-  infra/systemd/            Bootstrapping unit for Docker Compose
-  scripts/                  Shell scripts for sync, update, embed, health
-  docs/                     Product, architecture, and deployment docs
-  data/                     Local development bind mount root placeholder
+- `apps/web/`: Next.js UI, authenticated API routes, SQLite chat persistence
+- `services/opencode-query/`: grounded answers, model catalog API, folder listing
+- `services/sync-worker/`: read-only S3 sync, run status and logs
+- `services/scheduler/`: periodic sync trigger
+- `packages/model-catalog/`: shared model definitions and route defaults
+- `showcase-website/`: separate marketing website
+- `infra/`: Docker Compose, AWS IAM, Cloudflare and systemd configuration
+
+## Local setup
+
+Use Node 24 and pnpm 11.1.2 (pinned by `.nvmrc` and `packageManager`). Local pnpm commands use the `sfw` wrapper. All projects share the root `pnpm-lock.yaml`.
+
+```bash
+sfw pnpm install --frozen-lockfile
+sfw pnpm check
+sfw pnpm build
 ```
 
-## Prerequisites
-
-- Raspberry Pi with a recent 64-bit Linux distribution
-- Docker Engine with Compose plugin
-- AWS account with an S3 bucket already fed by Remotely Save
-- Cloudflare account with Zero Trust enabled
-- A domain managed in Cloudflare
-- Enough local disk for:
-  - full vault mirror
-  - QMD index database and model artifacts
-  - sync logs and status metadata
-
-## Local Development Setup
+For the full stack:
 
 1. Copy `.env.example` to `.env`.
-2. Set S3 bucket, prefix, region, and read-only credentials.
-3. Set `LATTICE_DATA_ROOT` to an absolute path or leave the local default `../../data/runtime`.
-   The value is consumed by Compose from `infra/docker/docker-compose.yml`, so relative paths are resolved from `infra/docker/`.
-4. For ChatGPT subscription models, place your OpenCode `auth.json` at the repository root as `opencode-auth.json` and leave `OPENCODE_OPENAI_AUTH_HOST_FILE=../../opencode-auth.json` in `.env`.
-5. Start the stack:
+2. Configure the S3 bucket, prefix, region, and read-only AWS credentials.
+3. Set `OPENROUTER_API_KEY` for API-backed answers.
+4. Set `WEB_AUTH_MODE=dev` and `WEB_DEV_USER_EMAIL=you@example.com` for local use.
+5. Run `make up` and open `http://localhost:3000` (or your configured `WEB_PORT`).
+
+`LATTICE_DATA_ROOT` is resolved relative to `infra/docker/docker-compose.yml`. Its default `../../data/runtime` points to repository-local runtime storage.
+
+For web-only iteration, keep backend containers running and override their URLs with reachable local endpoints if needed:
 
 ```bash
-make up
+sfw pnpm --filter lattice-web dev
 ```
 
-6. Open `http://localhost:${WEB_PORT}` if you are running locally without Cloudflare.
+Backend containers expose ports only on the Docker network. Running only the web process on the host does not make those services reachable automatically.
 
-For app-only iteration:
+## Models and authentication
+
+New chats default to GPT-5.5 through **OpenRouter API billing**. The existing catalog also includes Claude Sonnet 4.6, Claude Opus 4.6, and Gemini 2.5 Pro. `OPENCODE_MODEL` controls the backend default model; model definitions live in `packages/model-catalog/catalog.json`.
+
+The OpenAI route toggle supports OpenRouter and ChatGPT subscription OAuth. There is no direct OpenAI API-key integration. Existing explicit subscription choices and legacy OpenAI chat choices remain preserved.
+
+### Optional subscription access
+
+API-only setup does not require an OAuth file. To also use subscription authentication:
+
+1. Copy the OpenCode `auth.json` from a machine where you are already logged in to repository-root `opencode-auth.json`.
+2. Set `OPENCODE_OPENAI_AUTH_HOST_FILE=../../opencode-auth.json` in `.env`.
+3. Start the optional mount overlay:
 
 ```bash
-cd apps/web
-npm install
-npm run dev
+make up SUBSCRIPTION=1
+# Equivalent:
+docker compose --env-file .env -f infra/docker/docker-compose.yml -f infra/docker/docker-compose.subscription.yml up --build -d
 ```
 
-Node-based backend services now compile TypeScript source from `src/` into `dist/` before runtime. For local backend iteration, build the service first and then run its compiled entrypoint via the service-local `start` script.
+Use `SUBSCRIPTION=1` for subsequent `make up` calls while retaining subscription access. The overlay bind-mounts the file at `/app/opencode-data/opencode/auth.json` and disables automatic host-path creation. OpenCode token refreshes persist to that file. Never commit or log it; Git and Docker build contexts exclude it.
 
-## Production Deployment
-
-1. Install Docker and Compose on the Raspberry Pi.
-2. Clone this repository to a stable path such as `/opt/lattice`.
-3. Create `.env` from `.env.example`.
-4. Put a ChatGPT/OpenAI OAuth auth file at `/opt/lattice/opencode-auth.json` and keep `OPENCODE_OPENAI_AUTH_HOST_FILE=../../opencode-auth.json` in `.env`.
-5. Create the runtime directories:
-
-```bash
-mkdir -p /srv/lattice/{vault,qmd,status,logs,chat}
-```
-
-6. Point `LATTICE_DATA_ROOT=/srv/lattice`.
-7. Start the stack:
-
-```bash
-docker compose --env-file .env -f infra/docker/docker-compose.yml up --build -d
-```
-
-8. Install the systemd unit in [`infra/systemd/lattice-compose.service`](infra/systemd/lattice-compose.service) so the stack comes back after reboot.
-
-## Environment Variables
+## Environment
 
 | Variable | Purpose |
 | --- | --- |
-| `LATTICE_PUBLIC_URL` | External URL used by the UI and Cloudflare |
-| `LATTICE_DATA_ROOT` | Host directory for persistent bind mounts |
-| `CHAT_DB_PATH` | Local SQLite path used for persisted chat history |
-| `WEB_AUTH_MODE` | Web auth mode: `dev` is the default local setup, `cloudflare` requires the Cloudflare Access email header, and `auto` is an optional hybrid mode that prefers the Cloudflare header and otherwise uses `WEB_DEV_USER_EMAIL` when configured |
-| `WEB_DEV_USER_EMAIL` | Development identity used when `WEB_AUTH_MODE=dev`, and as the fallback identity in `WEB_AUTH_MODE=auto` when Cloudflare headers are absent |
-| `OPENROUTER_API_KEY` | OpenRouter API key used by the OpenCode query service for non-OpenAI models |
-| `OPENCODE_OPENAI_AUTH_HOST_FILE` | Explicit host path to the OpenCode `auth.json` file for ChatGPT subscription-backed `openai/*` models. The default `../../opencode-auth.json` resolves to the repository-root `opencode-auth.json` from the Compose file location. |
-| `SYNC_S3_BUCKET` | S3 bucket containing the mirrored vault |
-| `SYNC_S3_PREFIX` | Bucket prefix used for the Obsidian vault |
-| `SYNC_AWS_REGION` | AWS region for the S3 bucket |
-| `SYNC_DELETE` | Whether local mirror deletes files removed from S3 |
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Read-only AWS credentials for the Pi |
-| `QMD_COLLECTION` | Single collection name used in v1 |
-| `OPENCODE_MODEL` | Default OpenCode model identifier. Supported values: `anthropic/claude-sonnet-4.6`, `anthropic/claude-opus-4.6`, `openai/gpt-5.5`, or `google/gemini-2.5-pro`. Falls back to GPT-5.5 if unset or invalid. |
-| `OPENCODE_QUERY_TIMEOUT_MS` | OpenCode inactivity timeout in milliseconds. Resets whenever the worker emits progress. Set to `0` to disable. Defaults to `120000`. |
-| `OPENCODE_PROMPT_HEARTBEAT_MS` | Heartbeat interval in milliseconds while an OpenCode prompt is still running. Defaults to `15000`. |
-| `OPENCODE_WORKER_SHUTDOWN_GRACE_MS` | Grace period in milliseconds before a timed-out worker and its OpenCode process group are force-killed. Defaults to `5000`. |
-| `QMD_EMBED_STRATEGY` | `on-change`, `always`, `never`, or `manual` |
-| `CLOUDFLARE_TUNNEL_TOKEN` | Token for the optional `cloudflared` service |
+| `LATTICE_PUBLIC_URL` | External UI hostname |
+| `LATTICE_DATA_ROOT` | Host root for persistent runtime directories |
+| `CHAT_DB_PATH` | Chat SQLite database path inside the web container |
+| `WEB_AUTH_MODE` | `dev`, `cloudflare`, or `auto` |
+| `WEB_DEV_USER_EMAIL` | Development identity; optional fallback with `auto` |
+| `OPENROUTER_API_KEY` | API key for all OpenRouter-backed models |
+| `OPENCODE_MODEL` | Default model ID; invalid/unset values fall back to GPT-5.5 |
+| `OPENCODE_OPENAI_AUTH_HOST_FILE` | OAuth file used only by the subscription Compose overlay |
+| `OPENCODE_QUERY_TIMEOUT_MS` | Inactivity timeout; default 120000, `0` disables it |
+| `OPENCODE_PROMPT_HEARTBEAT_MS` | Worker heartbeat interval; default 15000 |
+| `OPENCODE_WORKER_SHUTDOWN_GRACE_MS` | Grace period before process-group force-kill; default 5000 |
+| `SYNC_S3_BUCKET` / `SYNC_S3_PREFIX` | S3 vault source |
+| `SYNC_AWS_REGION` | AWS region |
+| `SYNC_DELETE` | Whether files removed from S3 are deleted from the local mirror |
+| `SYNC_INTERVAL_SECONDS` | Scheduled sync interval; default 300 |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Read-only, bucket/prefix-scoped credentials |
+| `CLOUDFLARE_TUNNEL_TOKEN` | Optional Cloudflare Tunnel token |
 
-## AWS Credentials and IAM
+Use `WEB_AUTH_MODE=cloudflare` behind Cloudflare Access. `auto` intentionally allows the configured development fallback when Access headers are absent. Keep backend services internal and restrict direct web-port access appropriately.
 
-Use a dedicated IAM principal with read-only permissions scoped to the exact bucket and prefix. The starter policy lives at [`infra/aws/readonly-iam-policy.json`](infra/aws/readonly-iam-policy.json).
+## Runtime data and sync
 
-Recommended permissions:
+Persistent directories under `LATTICE_DATA_ROOT`:
 
-- `s3:ListBucket` on the bucket with a prefix condition
-- `s3:GetObject` on the relevant object ARN prefix
+- `vault/`: read-only S3 mirror source for answers
+- `chat/`: SQLite chat history
+- `status/`: sync status JSON
+- `logs/`: per-run sync logs
 
-Do not grant write or delete permissions from the Raspberry Pi side.
+The scheduler posts to sync-worker, which runs `scripts/sync-vault.sh`, records changed-file counts and completion status, and reports OpenCode health. Manual sync uses the same pipeline.
 
-## Cloudflare Tunnel and Access
+AWS permissions should permit only `s3:ListBucket` for the configured prefix and `s3:GetObject` for its objects. See `infra/aws/readonly-iam-policy.json`.
 
-Only the web service should be exposed. QMD and the sync worker remain internal-only.
+## Deployment and upgrades
 
-1. Create a Cloudflare Tunnel for the app hostname.
-2. Point the public hostname at `http://web:${WEB_INTERNAL_PORT}` inside the stack.
-3. Add a Cloudflare Access policy requiring your identity provider before the web app is reachable.
-4. Put the generated tunnel token into `CLOUDFLARE_TUNNEL_TOKEN`.
+See [deployment](docs/deployment.md) and [Cloudflare setup](infra/cloudflare/tunnel-notes.md). Docker builds use Node 24, frozen pnpm installs, and an exactly matched OpenCode CLI/SDK pair. Updating either OpenCode package requires updating the other and testing native server startup/shutdown.
 
-For local development without Cloudflare, use `WEB_AUTH_MODE=dev` and set `WEB_DEV_USER_EMAIL=you@example.com`. For production behind Cloudflare Access, set `WEB_AUTH_MODE=cloudflare` so requests must include the Cloudflare Access email header. Use `WEB_AUTH_MODE=auto` only if you intentionally want one config that accepts Cloudflare-authenticated traffic and also falls back to `WEB_DEV_USER_EMAIL` in non-Cloudflare environments.
+Before upgrading, back up `chat/`, `status/`, and any irreplaceable vault content. Existing chats from the retired QMD engine keep their messages and migrate to OpenCode/OpenRouter for future questions. Old QMD index/cache directories are no longer mounted; their contents are not deleted automatically.
 
-More detail is in [`infra/cloudflare/tunnel-notes.md`](infra/cloudflare/tunnel-notes.md).
-
-## Container Startup and Runtime Data
-
-### OpenAI Auth File
-
-The ChatGPT subscription flow requires an OpenCode `auth.json` file. Lattice intentionally does not read OpenAI OAuth credentials from `.env`; the auth file must be an explicit repository-root file so setup failures are obvious and token refreshes can persist.
-
-1. On a machine where OpenCode is already logged in, copy `~/.local/share/opencode/auth.json` to the Lattice repository root as `opencode-auth.json`.
-2. Keep `OPENCODE_OPENAI_AUTH_HOST_FILE=../../opencode-auth.json` in `.env`. This path is relative to `infra/docker/docker-compose.yml`.
-3. Start or recreate the stack with `make up`.
-
-The file is ignored by git via `.gitignore`. Do not commit, paste, or log `opencode-auth.json`; it contains live OAuth refresh and access tokens. The `opencode-query` container bind-mounts this file at `/app/opencode-data/opencode/auth.json`, sets `XDG_DATA_HOME=/app/opencode-data`, and sets `OPENCODE_OPENAI_AUTH_FILE` to the same auth path. This makes Lattice and OpenCode use the same file, so OpenCode's OAuth token refreshes persist back to the repository-root `opencode-auth.json`.
-
-Persistent directories expected under `LATTICE_DATA_ROOT`:
-
-- `vault/` for the local mirror
-- `qmd/` for the QMD SQLite store and model cache
-- `chat/` for the web app SQLite chat history
-- `status/` for `status.json`
-- `logs/` for per-run sync and indexing logs
-
-These directories must not be committed. They are bind-mounted into the containers.
-
-## Sync and Indexing Workflow
-
-1. `scheduler` posts to `sync-worker` every 5 minutes by default.
-2. `sync-worker` runs [`scripts/sync-vault.sh`](scripts/sync-vault.sh).
-3. On successful sync, it runs [`scripts/run-qmd-update.sh`](scripts/run-qmd-update.sh).
-4. It optionally runs [`scripts/run-qmd-embed.sh`](scripts/run-qmd-embed.sh) based on `QMD_EMBED_STRATEGY`.
-5. It writes human-readable and machine-readable status for the UI.
-6. The web UI can also trigger the same `/run` pipeline manually.
-
-## Logs, Health Checks, and Status
-
-- `docker compose logs -f` for service logs
-- [`scripts/healthcheck.sh`](scripts/healthcheck.sh) for lightweight HTTP health probes
-- `status.json` under the status volume for last sync and indexing state
-
-The web UI surfaces:
-
-- last sync time
-- last successful sync time
-- last index update time
-- current run state
-- embeddings state
-- QMD, OpenCode, and sync worker health
-
-## Troubleshooting
-
-Common failure modes:
-
-- AWS auth errors: verify credentials, region, bucket, and prefix
-- Empty results after sync: confirm the vault actually landed in the mirror path
-- QMD failures: check whether the collection exists and whether the database path is writable
-- Cloudflare 502/Access errors: verify the tunnel token and origin service hostname
-- Manual sync stuck in running state: inspect sync-worker logs for a failed child process or lock cleanup issue
-
-Useful commands:
+After upgrading from a version containing QMD, remove the orphaned service container using the deployment command:
 
 ```bash
-docker compose --env-file .env -f infra/docker/docker-compose.yml ps
-docker compose --env-file .env -f infra/docker/docker-compose.yml logs -f sync-worker
-curl -fsS http://localhost:4000/status | jq
+docker compose --env-file .env -f infra/docker/docker-compose.yml up --build -d --remove-orphans
 ```
 
-## Maintenance and Upgrade Notes
+Include the subscription overlay when needed. This does not delete old bind-mounted index/cache directories.
 
-- Rebuild after code changes with `make up`
-- Back up the `vault/`, `qmd/`, `chat/`, and `status/` directories before major upgrades
-- If QMD schema changes, stop the stack, snapshot the `qmd/` directory, then rebuild
-- Rotate the AWS key and Cloudflare tunnel token periodically
+## Checks and troubleshooting
 
-## Current v1 Decisions
+```bash
+sfw pnpm check
+sfw pnpm build
+sfw pnpm audit
+make lint-shell
+docker compose --env-file .env.example -f infra/docker/docker-compose.yml config --quiet
+```
 
-- AWS CLI is the default sync implementation
-- One QMD collection for the vault
-- Retrieval-first answering, with synthesized-answer support left as a future layer
-- Containerized scheduling outside the Next.js process
-- Systemd only for machine bootstrapping, not recurring jobs
+CI runs type checks, unit/integration tests, production builds, and container builds. SQLite tests use disposable databases; OpenCode integration tests use isolated configuration and make no paid model calls. Actual provider answers still require a configured API key and a manual query checking streaming, citations, file tools, and cancellation.
+
+Use `make logs`, `make ps`, and `scripts/healthcheck.sh` for diagnostics. For provider failures, verify `OPENROUTER_API_KEY`, selected model availability, or the optional subscription mount. For sync failures, inspect AWS permissions and sync-worker logs.
