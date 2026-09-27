@@ -30,7 +30,7 @@ test("parseChatAskStreamEvent parses final chat payloads", () => {
         updatedAt: "2026-04-20T12:00:05.000Z",
         engine: "opencode",
         folder: "",
-        model: "openai/gpt-5.5",
+        model: "openai/gpt-6-luna",
         messages: []
       }
     }

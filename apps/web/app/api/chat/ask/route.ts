@@ -60,8 +60,6 @@ export async function POST(request: Request) {
               question: parsed.question,
               engine: parsed.engine,
               folder: parsed.folder,
-              model: parsed.model,
-              openAiRoute: parsed.openAiRoute,
               successResponse: result.ok ? result.response : undefined,
               errorResponse: result.ok ? undefined : result.error,
               assistantStream: finalizeAssistantStreamState(assistantStream)

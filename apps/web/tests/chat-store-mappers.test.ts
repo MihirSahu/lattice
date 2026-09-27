@@ -17,11 +17,11 @@ test("mapThreadSummaryRow maps persisted thread rows into API-safe summaries", (
 
   assert.equal(summary.title, "How does sync work?");
   assert.equal(summary.engine, "opencode");
-  assert.equal(summary.model, "openai/gpt-5.5");
+  assert.equal(summary.model, "openai/gpt-6-luna");
   assert.equal(summary.openAiRoute, "openrouter");
 });
 
-test("mapThreadSummaryRow upgrades legacy GPT-5 persisted rows", () => {
+test("mapThreadSummaryRow normalizes legacy GPT-5 future settings", () => {
   const summary = mapThreadSummaryRow({
     id: "0ff3dc7a-cfdf-4476-8a3c-d0ca9a2e0e8b",
     title: "Legacy GPT chat",
@@ -33,11 +33,11 @@ test("mapThreadSummaryRow upgrades legacy GPT-5 persisted rows", () => {
     updatedAt: "2026-04-20T12:00:05.000Z"
   });
 
-  assert.equal(summary.model, "openai/gpt-5.5");
+  assert.equal(summary.model, "openai/gpt-6-luna");
   assert.equal(summary.openAiRoute, "openrouter");
 });
 
-test("mapThreadSummaryRow infers subscription for legacy OpenAI threads", () => {
+test("mapThreadSummaryRow uses OpenRouter for future requests on legacy OpenAI threads", () => {
   const summary = mapThreadSummaryRow({
     id: "0ff3dc7a-cfdf-4476-8a3c-d0ca9a2e0e8b",
     title: "Legacy GPT chat",
@@ -49,11 +49,12 @@ test("mapThreadSummaryRow infers subscription for legacy OpenAI threads", () => 
     updatedAt: "2026-04-20T12:00:05.000Z"
   });
 
-  assert.equal(summary.openAiRoute, "subscription");
+  assert.equal(summary.openAiRoute, "openrouter");
 });
 
-test("OpenCode model schema accepts Opus and rejects removed Grok", () => {
-  assert.equal(opencodeModelIdSchema.parse("anthropic/claude-opus-4.6"), "anthropic/claude-opus-4.6");
+test("thread model schema accepts only Luna", () => {
+  assert.equal(opencodeModelIdSchema.parse("openai/gpt-6-luna"), "openai/gpt-6-luna");
+  assert.throws(() => opencodeModelIdSchema.parse("anthropic/claude-opus-4.6"));
   assert.throws(() => opencodeModelIdSchema.parse("x-ai/grok-4"));
 });
 
@@ -314,14 +315,15 @@ test("chat request and response schemas parse persisted chat API contracts", () 
       updatedAt: "2026-04-20T12:00:05.000Z",
       engine: "opencode",
       folder: "notes",
-      model: "openai/gpt-5.5",
+      model: "openai/gpt-6-luna",
       openAiRoute: "openrouter",
       messages: []
     }
   });
 
   assert.equal(request.engine, "opencode");
-  assert.equal(request.openAiRoute, "openrouter");
+  assert.equal("openAiRoute" in request, false);
+  assert.equal("model" in request, false);
   assert.equal(response.thread.folder, "notes");
   assert.equal(response.thread.openAiRoute, "openrouter");
 });
@@ -334,4 +336,13 @@ test("chat thread list schema includes the authenticated user identity", () => {
   });
 
   assert.equal(response.userEmail, "developer@example.com");
+});
+
+test("historical answer model and subscription route remain unchanged", () => {
+  const response = { ok: true, backend: "opencode", mode: "agent", provider: "openai", model: "openai/gpt-5", openAiRoute: "subscription", question: "Old question", answer: "Old answer", sources: [] };
+  const message = mapPersistedChatMessageRow({
+    id: "53ad4a54-4c2c-46fe-8c16-a75060c7bf48", role: "assistant", status: "complete", createdAt: "2026-04-20T12:00:10.000Z", question: null,
+    responseJson: JSON.stringify(response), errorText: null, errorDetailsJson: null, errorCode: null
+  });
+  assert.deepEqual(message.response, response);
 });

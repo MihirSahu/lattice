@@ -15,8 +15,6 @@ export type UpsertThreadSettingsInput = {
   title?: string;
   engine?: ChatAskRequest["engine"];
   folder?: string;
-  model?: ChatAskRequest["model"] | null;
-  openAiRoute?: ChatAskRequest["openAiRoute"] | null;
 };
 
 export type AppendQuestionAndAnswerInput = {
@@ -25,8 +23,6 @@ export type AppendQuestionAndAnswerInput = {
   question: string;
   engine: ChatAskRequest["engine"];
   folder?: string;
-  model?: ChatAskRequest["model"];
-  openAiRoute?: ChatAskRequest["openAiRoute"];
   successResponse?: AskResponse;
   errorResponse?: AskErrorResponse;
   assistantStream?: PendingAssistantStreamState | null;

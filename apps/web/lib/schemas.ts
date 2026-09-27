@@ -1,22 +1,13 @@
-import { OPENCODE_MODEL_IDS, OPENAI_ROUTES } from "@lattice/model-catalog";
+import { DEFAULT_MODEL_ID, DEFAULT_OPENAI_ROUTE } from "@lattice/model-catalog";
 import { z } from "zod";
 
 export const queryEngineSchema = z.literal("opencode");
 export const chatRoleSchema = z.enum(["user", "assistant"]);
 export const persistedChatMessageStatusSchema = z.enum(["complete", "error"]);
-export { OPENCODE_MODEL_IDS } from "@lattice/model-catalog";
-export const opencodeModelIdSchema = z.enum(OPENCODE_MODEL_IDS);
-export const opencodeOpenAiRouteSchema = z.enum(OPENAI_ROUTES);
-export const opencodeModelProviderSchema = z.enum(["anthropic", "openai", "google"]);
-export const opencodeModelIconKeySchema = z.enum(["claude", "openai", "gemini"]);
-export const opencodeModelOptionSchema = z.object({
-  id: opencodeModelIdSchema,
-  label: z.string(),
-  provider: opencodeModelProviderSchema,
-  iconKey: opencodeModelIconKeySchema,
-  description: z.string(),
-  isDefault: z.boolean()
-});
+export const opencodeModelIdSchema = z.literal(DEFAULT_MODEL_ID);
+export const opencodeOpenAiRouteSchema = z.literal(DEFAULT_OPENAI_ROUTE);
+// Historical answers retain the provider route that actually produced them.
+const historicalOpenAiRouteSchema = z.enum(["openrouter", "subscription"]);
 
 export const sourceSchema = z.object({
   id: z.string(),
@@ -38,8 +29,6 @@ export const askRequestSchema = z.object({
   question: z.string().trim().min(1),
   folder: z.string().trim().min(1).optional(),
   engine: queryEngineSchema.optional(),
-  model: opencodeModelIdSchema.optional(),
-  openAiRoute: opencodeOpenAiRouteSchema.optional(),
   limit: z.number().int().positive().max(20).optional()
 });
 
@@ -50,7 +39,7 @@ export const askResponseSchema = z.object({
   mode: z.string(),
   provider: z.string().optional(),
   model: z.string().optional(),
-  openAiRoute: opencodeOpenAiRouteSchema.optional(),
+  openAiRoute: historicalOpenAiRouteSchema.optional(),
   question: z.string(),
   folder: z.string().nullable().optional(),
   duration_ms: z.number().nonnegative().optional(),
@@ -96,11 +85,6 @@ export const statusSchema = z.object({
 export const sourceFoldersResponseSchema = z.object({
   ok: z.literal(true),
   folders: z.array(sourceFolderSchema)
-});
-
-export const opencodeModelsResponseSchema = z.object({
-  ok: z.literal(true),
-  models: z.array(opencodeModelOptionSchema).min(1)
 });
 
 export const traceFileOperationSchema = z.enum(["read", "search", "list", "write", "command", "unknown"]);
@@ -203,9 +187,7 @@ export const chatThreadPatchRequestSchema = z
   .object({
     title: z.string().trim().min(1).max(200).optional(),
     engine: queryEngineSchema.optional(),
-    folder: z.string().optional(),
-    model: opencodeModelIdSchema.nullable().optional(),
-    openAiRoute: opencodeOpenAiRouteSchema.nullable().optional()
+    folder: z.string().optional()
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: "At least one thread setting must be provided."
@@ -215,9 +197,7 @@ export const chatAskRequestSchema = z.object({
   threadId: z.string().uuid().optional(),
   question: z.string().trim().min(1),
   engine: queryEngineSchema,
-  folder: z.string().optional(),
-  model: opencodeModelIdSchema.optional(),
-  openAiRoute: opencodeOpenAiRouteSchema.optional()
+  folder: z.string().optional()
 });
 
 export const chatAskResponseSchema = z.object({
@@ -233,7 +213,6 @@ export type StatusPayload = z.infer<typeof statusSchema>;
 export type SourceFolder = z.infer<typeof sourceFolderSchema>;
 export type OpencodeModelId = z.infer<typeof opencodeModelIdSchema>;
 export type OpencodeOpenAiRoute = z.infer<typeof opencodeOpenAiRouteSchema>;
-export type OpencodeModelOption = z.infer<typeof opencodeModelOptionSchema>;
 export type PersistedChatMessage = z.infer<typeof persistedChatMessageSchema>;
 export type ChatThreadSummary = z.infer<typeof chatThreadSummarySchema>;
 export type ChatThreadDetail = z.infer<typeof chatThreadDetailSchema>;
@@ -263,8 +242,6 @@ export type ChatMessage = {
 export type DraftThreadSettings = {
   engine: z.infer<typeof queryEngineSchema>;
   folder: string;
-  model: OpencodeModelId;
-  openAiRoute: OpencodeOpenAiRoute;
 };
 
 export type LocalChatCacheSnapshot = {

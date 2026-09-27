@@ -19,10 +19,10 @@ The scheduler triggers S3 sync at a fixed interval. OpenCode reads the mirror di
 ## Repository layout
 
 - `apps/web/`: Next.js UI, authenticated API routes, SQLite chat persistence
-- `services/opencode-query/`: grounded answers, model catalog API, folder listing
+- `services/opencode-query/`: grounded answers, folder listing
 - `services/sync-worker/`: read-only S3 sync, run status and logs
 - `services/scheduler/`: periodic sync trigger
-- `packages/model-catalog/`: shared model definitions and route defaults
+- `packages/model-catalog/`: fixed model and provider constants
 - `showcase-website/`: separate marketing website
 - `infra/`: Docker Compose, AWS IAM, Cloudflare and systemd configuration
 
@@ -54,27 +54,13 @@ sfw pnpm --filter lattice-web dev
 
 Backend containers expose ports only on the Docker network. Running only the web process on the host does not make those services reachable automatically.
 
-## Models and authentication
+## Model and authentication
 
-New chats default to GPT-5.5 through **OpenRouter API billing**. The existing catalog also includes Claude Sonnet 4.6, Claude Opus 4.6, and Gemini 2.5 Pro. `OPENCODE_MODEL` controls the backend default model; model definitions live in `packages/model-catalog/catalog.json`.
+All questions use **GPT-6 Luna (`openai/gpt-6-luna`) through OpenRouter**. Set `OPENROUTER_API_KEY`; there are no model or billing-route pickers. ChatGPT subscription authentication and `OPENCODE_MODEL` overrides are no longer supported.
 
-The OpenAI route toggle supports OpenRouter and ChatGPT subscription OAuth. There is no direct OpenAI API-key integration. Existing explicit subscription choices and legacy OpenAI chat choices remain preserved.
+Existing threads migrate to Luna/OpenRouter for future questions. Historical answers retain their original model and route metadata. Old OAuth files are no longer mounted or used by Lattice; existing files on disk are left untouched.
 
-### Optional subscription access
-
-API-only setup does not require an OAuth file. To also use subscription authentication:
-
-1. Copy the OpenCode `auth.json` from a machine where you are already logged in to repository-root `opencode-auth.json`.
-2. Set `OPENCODE_OPENAI_AUTH_HOST_FILE=../../opencode-auth.json` in `.env`.
-3. Start the optional mount overlay:
-
-```bash
-make up SUBSCRIPTION=1
-# Equivalent:
-docker compose --env-file .env -f infra/docker/docker-compose.yml -f infra/docker/docker-compose.subscription.yml up --build -d
-```
-
-Use `SUBSCRIPTION=1` for subsequent `make up` calls while retaining subscription access. The overlay bind-mounts the file at `/app/opencode-data/opencode/auth.json` and disables automatic host-path creation. OpenCode token refreshes persist to that file. Never commit or log it; Git and Docker build contexts exclude it.
+Luna uses Chat Completions with reasoning disabled so it can call OpenCode's file tools. Both the main and helper model are pinned to Luna in the worker configuration.
 
 ## Environment
 
@@ -85,9 +71,7 @@ Use `SUBSCRIPTION=1` for subsequent `make up` calls while retaining subscription
 | `CHAT_DB_PATH` | Chat SQLite database path inside the web container |
 | `WEB_AUTH_MODE` | `dev`, `cloudflare`, or `auto` |
 | `WEB_DEV_USER_EMAIL` | Development identity; optional fallback with `auto` |
-| `OPENROUTER_API_KEY` | API key for all OpenRouter-backed models |
-| `OPENCODE_MODEL` | Default model ID; invalid/unset values fall back to GPT-5.5 |
-| `OPENCODE_OPENAI_AUTH_HOST_FILE` | OAuth file used only by the subscription Compose overlay |
+| `OPENROUTER_API_KEY` | Required API key for GPT-6 Luna through OpenRouter |
 | `OPENCODE_QUERY_TIMEOUT_MS` | Inactivity timeout; default 120000, `0` disables it |
 | `OPENCODE_PROMPT_HEARTBEAT_MS` | Worker heartbeat interval; default 15000 |
 | `OPENCODE_WORKER_SHUTDOWN_GRACE_MS` | Grace period before process-group force-kill; default 5000 |
@@ -125,7 +109,7 @@ After upgrading from a version containing QMD, remove the orphaned service conta
 docker compose --env-file .env -f infra/docker/docker-compose.yml up --build -d --remove-orphans
 ```
 
-Include the subscription overlay when needed. This does not delete old bind-mounted index/cache directories.
+This does not delete old bind-mounted index/cache directories. Start with only the main Compose file to remove the old subscription authentication mount.
 
 ## Checks and troubleshooting
 
@@ -139,4 +123,4 @@ docker compose --env-file .env.example -f infra/docker/docker-compose.yml config
 
 CI runs type checks, unit/integration tests, production builds, and container builds. SQLite tests use disposable databases; OpenCode integration tests use isolated configuration and make no paid model calls. Actual provider answers still require a configured API key and a manual query checking streaming, citations, file tools, and cancellation.
 
-Use `make logs`, `make ps`, and `scripts/healthcheck.sh` for diagnostics. For provider failures, verify `OPENROUTER_API_KEY`, selected model availability, or the optional subscription mount. For sync failures, inspect AWS permissions and sync-worker logs.
+Use `make logs`, `make ps`, and `scripts/healthcheck.sh` for diagnostics. For provider failures, verify `OPENROUTER_API_KEY`, OpenRouter credits, and GPT-6 Luna availability. For sync failures, inspect AWS permissions and sync-worker logs.

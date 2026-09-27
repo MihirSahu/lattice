@@ -46,7 +46,7 @@ test("SQLite chat store migrates, persists, and isolates users", async (t) => {
     assert.equal(database.sqlite.pragma("foreign_keys", { simple: true }), 1);
   });
 
-  await t.test("upgrades an existing QMD database without changing history or other users' settings", async () => {
+  await t.test("upgrades an existing QMD database and normalizes all future settings without changing history", async () => {
     const { createChatDatabase } = await import("../lib/server/db/client.ts");
     const { migrateChatDatabase } = await import("../lib/server/db/migrate.ts");
     const legacy = createChatDatabase(join(directory, "legacy.sqlite"));
@@ -70,14 +70,15 @@ test("SQLite chat store migrates, persists, and isolates users", async (t) => {
         values ('old-answer', ?, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')`).run(JSON.stringify(stream));
       const messagesBefore = legacy.sqlite.prepare("select * from chat_messages").all();
       const tracesBefore = legacy.sqlite.prepare("select * from chat_message_traces").all();
-      const bobBefore = legacy.sqlite.prepare("select * from chat_threads where user_email = ?").get(bob);
+      const threadsBefore = legacy.sqlite.prepare("select id, title, folder, created_at, updated_at from chat_threads order by id").all();
 
       migrateChatDatabase(legacy);
       migrateChatDatabase(legacy);
 
       const upgraded = legacy.sqlite.prepare("select engine, model, openai_route, updated_at from chat_threads where user_email = ?").get(alice);
-      assert.deepEqual(upgraded, { engine: "opencode", model: "openai/gpt-5.5", openai_route: "openrouter", updated_at: "2026-01-02T00:00:00.000Z" });
-      assert.deepEqual(legacy.sqlite.prepare("select * from chat_threads where user_email = ?").get(bob), bobBefore);
+      assert.deepEqual(upgraded, { engine: "opencode", model: "openai/gpt-6-luna", openai_route: "openrouter", updated_at: "2026-01-02T00:00:00.000Z" });
+      assert.deepEqual(legacy.sqlite.prepare("select engine, model, openai_route, updated_at from chat_threads where user_email = ?").get(bob), upgraded);
+      assert.deepEqual(legacy.sqlite.prepare("select id, title, folder, created_at, updated_at from chat_threads order by id").all(), threadsBefore);
       assert.deepEqual(legacy.sqlite.prepare("select * from chat_messages").all(), messagesBefore);
       assert.deepEqual(legacy.sqlite.prepare("select * from chat_message_traces").all(), tracesBefore);
     } finally {
@@ -89,8 +90,6 @@ test("SQLite chat store migrates, persists, and isolates users", async (t) => {
     userEmail: alice,
     question: "What changed?",
     engine: "opencode",
-    model: "openai/gpt-5.5",
-    openAiRoute: "openrouter",
     successResponse: {
       ok: true, backend: "opencode", mode: "agent", question: "What changed?",
       answer: "The index was refreshed.", sources: []
@@ -104,6 +103,7 @@ test("SQLite chat store migrates, persists, and isolates users", async (t) => {
     assert.equal(loaded?.messages.find((message) => message.role === "assistant")?.response?.answer, "The index was refreshed.");
     assert.deepEqual(loaded?.messages.find((message) => message.role === "assistant")?.stream, stream);
     assert.equal(loaded?.openAiRoute, "openrouter");
+    assert.equal(loaded?.model, "openai/gpt-6-luna");
     const updated = await store.upsertThreadSettings({ userEmail: alice, threadId: thread.id, title: "Updated title" });
     assert.equal(updated?.title, "Updated title");
     assert.equal((await store.listThreadSummaries(alice))[0]?.id, thread.id);
@@ -134,8 +134,7 @@ test("SQLite chat store migrates, persists, and isolates users", async (t) => {
 
   await t.test("serializes concurrent writes and persists error traces", async () => {
     const results = await Promise.all([alice, bob].map((userEmail) => store.appendQuestionAndAnswer({
-      userEmail, question: "Concurrent request", engine: "opencode", model: "openai/gpt-5.5",
-      openAiRoute: "openrouter",
+      userEmail, question: "Concurrent request", engine: "opencode",
       errorResponse: { ok: false, error: "Provider unavailable", details: ["Try later"], code: "UPSTREAM" },
       assistantStream: stream
     })));
@@ -170,9 +169,27 @@ test("SQLite chat store migrates, persists, and isolates users", async (t) => {
       userEmail: "defaults@example.test", question: "Use defaults", engine: "opencode",
       successResponse: { ok: true, backend: "opencode", mode: "agent", question: "Use defaults", answer: "Done", sources: [] }
     });
-    assert.equal(defaults.model, "openai/gpt-5.5");
+    assert.equal(defaults.model, "openai/gpt-6-luna");
     assert.equal(defaults.openAiRoute, "openrouter");
     assert.equal((await store.getThreadDetail("defaults@example.test", defaults.id))?.openAiRoute, "openrouter");
+  });
+
+  await t.test("stale caller and response model settings cannot change future thread settings", async () => {
+    const staleSettings = { model: "anthropic/claude-opus-4.6", openAiRoute: "subscription" };
+    const saved = await store.appendQuestionAndAnswer({
+      ...staleSettings,
+      userEmail: "stale@example.test", question: "Old caller", engine: "opencode",
+      successResponse: { ok: true, backend: "opencode", mode: "agent", model: "openai/gpt-5.5", openAiRoute: "subscription", question: "Old caller", answer: "Historical answer", sources: [] }
+    });
+    assert.equal(saved.model, "openai/gpt-6-luna");
+    assert.equal(saved.openAiRoute, "openrouter");
+    assert.equal(saved.messages[1]?.response?.model, "openai/gpt-5.5");
+    assert.equal(saved.messages[1]?.response?.openAiRoute, "subscription");
+    const patched = await store.upsertThreadSettings({ ...staleSettings, userEmail: "stale@example.test", threadId: saved.id, title: "Renamed" });
+    assert.equal(patched?.model, "openai/gpt-6-luna");
+    assert.equal(patched?.openAiRoute, "openrouter");
+    const raw = database.sqlite.prepare("select engine, model, openai_route from chat_threads where id = ?").get(saved.id);
+    assert.deepEqual(raw, { engine: "opencode", model: "openai/gpt-6-luna", openai_route: "openrouter" });
   });
 
   await t.test("cascades thread deletion through messages and traces", () => {

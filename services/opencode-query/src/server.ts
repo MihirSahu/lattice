@@ -5,17 +5,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { listSourceFolders } from "./source-folders.js";
-import { hasOpenAiAuth } from "./openai-auth.js";
 import { terminateProcessWithGrace } from "./process-lifecycle.js";
-import {
-  getModelCatalog,
-  resolveDefaultModelId,
-  resolveOpenAiRoute,
-  resolveOpenCodeModelSelection,
-  resolveRequestedModelId,
-  type AllowedModelId,
-  type OpenAiRoute
-} from "./model-catalog.js";
+import { DEFAULT_MODEL_ID, DEFAULT_OPENAI_ROUTE, resolveOpenCodeModelSelection } from "./model-catalog.js";
 import {
   encodeNdjsonEvent,
   NdjsonLineParser,
@@ -29,8 +20,6 @@ type QueryRequest = {
   question?: unknown;
   folder?: unknown;
   limit?: unknown;
-  model?: unknown;
-  openAiRoute?: unknown;
 };
 
 class QueryWorkerInvocationError extends Error {
@@ -64,26 +53,6 @@ function wantsNdjson(req: IncomingMessage) {
 
 function writeNdjsonEvent(res: ServerResponse, event: unknown) {
   res.write(encodeNdjsonEvent(event));
-}
-
-async function isProviderConfiguredForModel(model: AllowedModelId, openAiRoute?: OpenAiRoute) {
-  const selection = resolveOpenCodeModelSelection(model, openAiRoute);
-
-  if (selection.providerID === "openrouter") {
-    return Boolean(process.env.OPENROUTER_API_KEY);
-  }
-
-  return hasOpenAiAuth();
-}
-
-function missingProviderMessage(model: AllowedModelId, openAiRoute?: OpenAiRoute) {
-  const selection = resolveOpenCodeModelSelection(model, openAiRoute);
-
-  if (selection.providerID === "openrouter") {
-    return "OPENROUTER_API_KEY is not configured.";
-  }
-
-  return "OpenAI auth is not configured. Set OPENCODE_OPENAI_AUTH_FILE to a mounted OpenCode auth.json file.";
 }
 
 function previewQuestion(value: string) {
@@ -161,7 +130,7 @@ async function resolveScopeRoot(folder: unknown) {
 }
 
 function runWorker(
-  payload: { question: string; limit: number; folder: string | null; model: string; openAiRoute: OpenAiRoute; requestId: string },
+  payload: { question: string; limit: number; folder: string | null; requestId: string },
   scopeRoot: string,
   onEvent?: (event: OpenCodeTraceEvent) => void
 ): Promise<WorkerResponse> {
@@ -371,13 +340,12 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url, `http://127.0.0.1:${port}`);
 
     if (req.method === "GET" && url.pathname === "/health") {
-      const defaultModel = resolveDefaultModelId();
-      const providerConfigured = await isProviderConfiguredForModel(defaultModel);
+      const providerConfigured = Boolean(process.env.OPENROUTER_API_KEY?.trim());
 
       respond(res, providerConfigured ? 200 : 503, {
         ok: providerConfigured,
         providerConfigured,
-        model: defaultModel
+        model: DEFAULT_MODEL_ID
       });
       return;
     }
@@ -387,30 +355,20 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    if (req.method === "GET" && url.pathname === "/models") {
-      respond(res, 200, {
-        ok: true,
-        models: getModelCatalog()
-      });
-      return;
-    }
-
     if (req.method === "POST" && url.pathname === "/query") {
       const body = await readBody(req);
       const question = typeof body.question === "string" ? body.question.trim() : "";
       const limit = typeof body.limit === "number" ? body.limit : 6;
-      const selectedModel = resolveRequestedModelId(body.model);
-      const openAiRoute = resolveOpenAiRoute(body.openAiRoute);
-      const modelSelection = resolveOpenCodeModelSelection(selectedModel, openAiRoute);
-      const responseOpenAiRoute = selectedModel.startsWith("openai/") ? openAiRoute : undefined;
+      const selectedModel = DEFAULT_MODEL_ID;
+      const modelSelection = resolveOpenCodeModelSelection();
 
       if (!question) {
         respond(res, 400, { ok: false, error: "Question is required." });
         return;
       }
 
-      if (!(await isProviderConfiguredForModel(selectedModel, openAiRoute))) {
-        respond(res, 500, { ok: false, error: missingProviderMessage(selectedModel, openAiRoute), provider: modelSelection.providerID });
+      if (!process.env.OPENROUTER_API_KEY?.trim()) {
+        respond(res, 500, { ok: false, error: "OPENROUTER_API_KEY is not configured.", provider: modelSelection.providerID });
         return;
       }
 
@@ -418,7 +376,7 @@ const server = createServer(async (req, res) => {
       const streamResponse = wantsNdjson(req);
 
       console.log(
-        `[opencode:${requestId}] start folder=${folder ?? "<all>"} model=${selectedModel} openai_route=${openAiRoute} limit=${limit} scope=${relative(vaultRoot, scopeRoot) || "."} question="${previewQuestion(question)}"`
+        `[opencode:${requestId}] start folder=${folder ?? "<all>"} model=${selectedModel} limit=${limit} scope=${relative(vaultRoot, scopeRoot) || "."} question="${previewQuestion(question)}"`
       );
 
       if (streamResponse) {
@@ -429,7 +387,7 @@ const server = createServer(async (req, res) => {
         });
 
         try {
-          const result = await runWorker({ question, limit, folder, model: selectedModel, openAiRoute, requestId }, scopeRoot, (event) => {
+          const result = await runWorker({ question, limit, folder, requestId }, scopeRoot, (event) => {
             writeNdjsonEvent(res, event);
           });
           const responsePayload = {
@@ -438,7 +396,7 @@ const server = createServer(async (req, res) => {
             mode: "agent",
             provider: modelSelection.providerID,
             model: selectedModel,
-            openAiRoute: responseOpenAiRoute,
+            openAiRoute: DEFAULT_OPENAI_ROUTE,
             folder,
             duration_ms: Date.now() - startedAt
           };
@@ -464,7 +422,7 @@ const server = createServer(async (req, res) => {
         return;
       }
 
-      const result = await runWorker({ question, limit, folder, model: selectedModel, openAiRoute, requestId }, scopeRoot);
+      const result = await runWorker({ question, limit, folder, requestId }, scopeRoot);
 
       console.log(
         `[opencode:${requestId}] finish duration_ms=${Date.now() - startedAt} sources=${result.sources.length}`
@@ -476,7 +434,7 @@ const server = createServer(async (req, res) => {
         mode: "agent",
         provider: modelSelection.providerID,
         model: selectedModel,
-        openAiRoute: responseOpenAiRoute,
+        openAiRoute: DEFAULT_OPENAI_ROUTE,
         folder,
         duration_ms: Date.now() - startedAt
       });

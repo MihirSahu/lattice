@@ -1,114 +1,28 @@
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import test from "node:test";
 import {
   assertOpenCodeResponseHasNoAssistantError,
   disabledSubagentTools,
   extractAnswer,
   getOpenCodeResponseDiagnostics,
-  resolveOpenCodeRuntimeConfig,
-  setOpenAiAuth
+  resolveOpenCodeRuntimeConfig
 } from "../dist/query-worker.js";
 
-const openAiAuth = {
-  type: "oauth",
-  refresh: "refresh-secret",
-  access: "access-secret",
-  expires: 1777769584483
-} as const;
-
-test("OpenAI runtime config does not require OPENROUTER_API_KEY", async () => {
-  const home = await mkdtemp(join(tmpdir(), "opencode-runtime-home-"));
-  const authPath = join(home, "auth.json");
-  await writeFile(authPath, JSON.stringify(openAiAuth));
-  const runtime = await resolveOpenCodeRuntimeConfig("openai/gpt-5.5", "subscription", {
-    OPENCODE_OPENAI_AUTH_FILE: authPath,
-    HOME: home
+test("Luna runtime requires OpenRouter and fixes model and tool-compatible reasoning", async () => {
+  await assert.rejects(() => resolveOpenCodeRuntimeConfig({}), /OPENROUTER_API_KEY is not configured/);
+  await assert.rejects(() => resolveOpenCodeRuntimeConfig({ OPENROUTER_API_KEY: "   " }), /OPENROUTER_API_KEY/);
+  const runtime = await resolveOpenCodeRuntimeConfig({
+    OPENROUTER_API_KEY: "local-test-key", OPENCODE_MODEL: "anthropic/claude-opus-4.6",
+    OPENCODE_OPENAI_AUTH_FILE: "/nonexistent/auth.json"
   });
-
   assert.deepEqual(runtime.modelSelection, {
-    providerID: "openai",
-    modelID: "gpt-5.5",
-    configModel: "openai/gpt-5.5"
+    providerID: "openrouter", modelID: "openai/gpt-6-luna", configModel: "openrouter/openai/gpt-6-luna"
   });
-  assert.equal(runtime.config.model, "openai/gpt-5.5");
-  assert.deepEqual(runtime.config.enabled_providers, ["openai"]);
-  assert.deepEqual(runtime.config.tools, disabledSubagentTools);
-  assert.deepEqual(runtime.config.agent?.general?.tools, disabledSubagentTools);
-  assert.equal(runtime.openAiAuth?.source, "file");
-});
-
-test("OpenRouter runtime config still requires OPENROUTER_API_KEY", async () => {
-  await assert.rejects(
-    () => resolveOpenCodeRuntimeConfig("anthropic/claude-sonnet-4.6", "subscription", {}),
-    /OPENROUTER_API_KEY is not configured/
-  );
-
-  const runtime = await resolveOpenCodeRuntimeConfig("anthropic/claude-sonnet-4.6", "subscription", {
-    OPENROUTER_API_KEY: "openrouter-secret"
-  });
-
-  assert.deepEqual(runtime.modelSelection, {
-    providerID: "openrouter",
-    modelID: "anthropic/claude-sonnet-4.6",
-    configModel: "openrouter/anthropic/claude-sonnet-4.6"
-  });
-  assert.equal(runtime.config.provider.openrouter.options.apiKey, "openrouter-secret");
-  assert.deepEqual(runtime.config.tools, disabledSubagentTools);
-  assert.deepEqual(runtime.config.agent?.general?.tools, disabledSubagentTools);
-});
-
-test("OpenAI models can use OpenRouter runtime config", async () => {
-  const runtime = await resolveOpenCodeRuntimeConfig("openai/gpt-5.5", "openrouter", {
-    OPENROUTER_API_KEY: "openrouter-secret"
-  });
-
-  assert.deepEqual(runtime.modelSelection, {
-    providerID: "openrouter",
-    modelID: "openai/gpt-5.5",
-    configModel: "openrouter/openai/gpt-5.5"
-  });
-  assert.equal(runtime.config.model, "openrouter/openai/gpt-5.5");
+  assert.equal(runtime.config.model, runtime.config.small_model);
   assert.deepEqual(runtime.config.enabled_providers, ["openrouter"]);
-  assert.equal(runtime.openAiAuth, null);
-});
-
-test("setOpenAiAuth writes credentials through the OpenCode auth endpoint", async () => {
-  const calls: unknown[] = [];
-  const client = {
-    auth: {
-      set: async (payload: unknown) => {
-        calls.push(payload);
-        return true;
-      }
-    }
-  };
-
-  await setOpenAiAuth(
-    client as Parameters<typeof setOpenAiAuth>[0],
-    {
-      auth: openAiAuth,
-      source: "file",
-      expires: openAiAuth.expires
-    },
-    "test-request"
-  );
-
-  assert.deepEqual(calls, [
-    {
-      responseStyle: "data",
-      throwOnError: true,
-      path: {
-        id: "openai"
-      },
-      query: {
-        directory: process.cwd()
-      },
-      body: openAiAuth
-    }
-  ]);
+  assert.deepEqual(runtime.config.provider?.openrouter.whitelist, ["openai/gpt-6-luna"]);
+  assert.deepEqual(runtime.config.provider?.openrouter.models?.["openai/gpt-6-luna"].options?.reasoning, { effort: "none" });
+  assert.deepEqual(runtime.config.tools, disabledSubagentTools);
 });
 
 test("assistant response errors become structured provider diagnostics", () => {
@@ -231,19 +145,5 @@ test("extractAnswer still returns text answers", () => {
       }
     ]),
     "The answer."
-  );
-});
-
-
-test("default OpenAI runtime uses API credentials without reading OAuth auth", async () => {
-  const runtime = await resolveOpenCodeRuntimeConfig("openai/gpt-5.5", undefined, {
-    OPENROUTER_API_KEY: "openrouter-secret",
-    OPENCODE_OPENAI_AUTH_FILE: "/nonexistent/auth.json"
-  });
-  assert.equal(runtime.modelSelection.providerID, "openrouter");
-  assert.equal(runtime.openAiAuth, null);
-  await assert.rejects(
-    () => resolveOpenCodeRuntimeConfig("openai/gpt-5.5", undefined, {}),
-    /OPENROUTER_API_KEY is not configured/
   );
 });

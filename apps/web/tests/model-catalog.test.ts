@@ -1,18 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEFAULT_MODEL_ID, OPENCODE_MODELS } from "@lattice/model-catalog";
-import { askRequestSchema, chatAskRequestSchema, opencodeModelsResponseSchema, sourceFoldersResponseSchema } from "../lib/schemas.ts";
-import { isSupportedOpencodeModel } from "../lib/chat-local-state.ts";
+import { askRequestSchema, chatAskRequestSchema, chatThreadPatchRequestSchema, sourceFoldersResponseSchema } from "../lib/schemas.ts";
 
-test("every shared catalog entry is accepted by API schemas and saved model normalization", () => {
-  const response = opencodeModelsResponseSchema.parse({
-    ok: true,
-    models: OPENCODE_MODELS.map((model) => ({ ...model, isDefault: model.id === DEFAULT_MODEL_ID }))
-  });
-  assert.equal(response.models.filter((model) => model.isDefault).length, 1);
-  for (const model of response.models) {
-    assert.equal(isSupportedOpencodeModel(model.id), true);
-  }
+test("query contracts discard stale model and route selections", () => {
+  const request = { question: "Summarize my notes", engine: "opencode", model: "anthropic/claude-opus-4.6", openAiRoute: "subscription" };
+  assert.deepEqual(askRequestSchema.parse(request), { question: request.question, engine: "opencode" });
+  assert.deepEqual(chatAskRequestSchema.parse(request), { question: request.question, engine: "opencode" });
+  assert.equal(chatThreadPatchRequestSchema.safeParse({ model: request.model, openAiRoute: request.openAiRoute }).success, false);
+  assert.deepEqual(chatThreadPatchRequestSchema.parse({ title: "Renamed", model: request.model, openAiRoute: request.openAiRoute }), { title: "Renamed" });
 });
 
 test("new query requests reject the retired QMD engine", () => {

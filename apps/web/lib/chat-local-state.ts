@@ -1,19 +1,10 @@
-import {
-  DEFAULT_MODEL_ID,
-  DEFAULT_OPENAI_ROUTE,
-  isAllowedModelId,
-  isOpenAiRoute
-} from "@lattice/model-catalog";
-export { DEFAULT_OPENAI_ROUTE } from "@lattice/model-catalog";
+import { DEFAULT_MODEL_ID, DEFAULT_OPENAI_ROUTE } from "@lattice/model-catalog";
 import type {
   ChatMessage,
-  ChatThreadDetail,
   ChatThreadSummary,
   DraftThreadSettings,
-  OpencodeOpenAiRoute,
   LocalChatCacheSnapshot,
   LocalChatUiState,
-  OpencodeModelId,
   PendingAssistantStreamState,
   PersistedChatMessage
 } from "@/lib/schemas";
@@ -23,8 +14,6 @@ const LEGACY_CHAT_UI_STORAGE_KEY = "lattice-chat-ui-v2";
 export const CHAT_CACHE_STORAGE_KEY_PREFIX = "lattice-chat-cache-v3";
 export const CHAT_UI_STORAGE_KEY_PREFIX = "lattice-chat-ui-v3";
 export const DEFAULT_THREAD_TITLE = "New chat";
-export const FALLBACK_OPENCODE_MODEL: OpencodeModelId = DEFAULT_MODEL_ID;
-export const LEGACY_DEFAULT_OPENCODE_MODELS = ["openai/gpt-5"] as const;
 
 export type PendingAskOverlay = {
   threadId: string | null;
@@ -79,75 +68,21 @@ export function getChatUiStorageKey(userEmail: string) {
   return `${CHAT_UI_STORAGE_KEY_PREFIX}:${normalizeUserStorageKey(userEmail)}`;
 }
 
-export function createDraftThreadSettings(model: OpencodeModelId = FALLBACK_OPENCODE_MODEL): DraftThreadSettings {
-  return {
-    engine: "opencode",
-    folder: "",
-    model,
-    openAiRoute: DEFAULT_OPENAI_ROUTE
-  };
+export function createDraftThreadSettings(): DraftThreadSettings {
+  return { engine: "opencode", folder: "" };
 }
 
-export function isSupportedOpencodeModel(value: unknown): value is OpencodeModelId {
-  return isAllowedModelId(value);
-}
-
-export function isLegacyDefaultOpencodeModel(value: unknown): boolean {
-  return typeof value === "string" && (LEGACY_DEFAULT_OPENCODE_MODELS as readonly string[]).includes(value);
-}
-
-export function isOpenAiOpencodeModel(value: unknown): value is OpencodeModelId {
-  return isSupportedOpencodeModel(value) && value.startsWith("openai/");
-}
-
-export function isSupportedOpenAiRoute(value: unknown): value is OpencodeOpenAiRoute {
-  return isOpenAiRoute(value);
-}
-
-export function normalizeOpenAiRoute(value: unknown, model: unknown): OpencodeOpenAiRoute {
-  if (!isOpenAiOpencodeModel(model)) {
-    return DEFAULT_OPENAI_ROUTE;
-  }
-
-  return isSupportedOpenAiRoute(value) ? value : DEFAULT_OPENAI_ROUTE;
-}
-
-export function shouldShowOpenAiRouteToggle(model: unknown) {
-  return isOpenAiOpencodeModel(model);
-}
-
-export function normalizeOpencodeModel(
-  value: unknown,
-  fallback: OpencodeModelId,
-  options: { upgradeLegacyDefault?: boolean } = {}
-): OpencodeModelId {
-  const upgradeLegacyDefault = options.upgradeLegacyDefault ?? true;
-
-  if (upgradeLegacyDefault && isLegacyDefaultOpencodeModel(value)) {
-    return fallback;
-  }
-
-  if (!isSupportedOpencodeModel(value)) {
-    return fallback;
-  }
-
-  return value;
-}
-
-function getDefaultUiState(defaultModel: OpencodeModelId): LocalChatUiState {
+function getDefaultUiState(): LocalChatUiState {
   return {
     selectedThreadId: null,
     draftQuestion: "",
-    draftThreadSettings: createDraftThreadSettings(defaultModel),
+    draftThreadSettings: createDraftThreadSettings(),
     sidebarCollapsed: false
   };
 }
 
-// Cached threads from the retired engine remain readable and continue with the API default.
+// Historical answers remain intact; every conversation continues with the fixed model.
 function normalizeCachedThread<T extends ChatThreadSummary>(thread: T): T {
-  if ((thread.engine as string) !== "qmd") {
-    return thread;
-  }
   return { ...thread, engine: "opencode", model: DEFAULT_MODEL_ID, openAiRoute: DEFAULT_OPENAI_ROUTE };
 }
 
@@ -179,30 +114,21 @@ export function saveLocalChatCache(userEmail: string, snapshot: LocalChatCacheSn
   setStorageItem(getChatCacheStorageKey(userEmail), JSON.stringify(snapshot));
 }
 
-export function loadLocalChatUiState(
-  userEmail: string,
-  defaultModel: OpencodeModelId = FALLBACK_OPENCODE_MODEL
-): LocalChatUiState {
+export function loadLocalChatUiState(userEmail: string): LocalChatUiState {
   const rawValue = getStorageItem(getChatUiStorageKey(userEmail));
 
   if (!rawValue) {
-    return getDefaultUiState(defaultModel);
+    return getDefaultUiState();
   }
 
   try {
     const parsed = JSON.parse(rawValue) as Partial<LocalChatUiState>;
-    const legacyQmdDraft = (parsed.draftThreadSettings?.engine as string | undefined) === "qmd";
     const draftThreadSettings = isObject(parsed.draftThreadSettings)
       ? {
           engine: "opencode" as const,
-          folder: typeof parsed.draftThreadSettings.folder === "string" ? parsed.draftThreadSettings.folder : "",
-          model: legacyQmdDraft ? DEFAULT_MODEL_ID : normalizeOpencodeModel(parsed.draftThreadSettings.model, defaultModel),
-          openAiRoute: legacyQmdDraft ? DEFAULT_OPENAI_ROUTE : normalizeOpenAiRoute(
-            parsed.draftThreadSettings.openAiRoute,
-            normalizeOpencodeModel(parsed.draftThreadSettings.model, defaultModel)
-          )
+          folder: typeof parsed.draftThreadSettings.folder === "string" ? parsed.draftThreadSettings.folder : ""
         }
-      : createDraftThreadSettings(defaultModel);
+      : createDraftThreadSettings();
 
     return {
       selectedThreadId: typeof parsed.selectedThreadId === "string" ? parsed.selectedThreadId : null,
@@ -211,7 +137,7 @@ export function loadLocalChatUiState(
       sidebarCollapsed: Boolean(parsed.sidebarCollapsed)
     };
   } catch {
-    return getDefaultUiState(defaultModel);
+    return getDefaultUiState();
   }
 }
 

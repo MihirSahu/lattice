@@ -1,6 +1,5 @@
 import { DEFAULT_MODEL_ID, DEFAULT_OPENAI_ROUTE } from "@lattice/model-catalog";
 import {
-  OPENCODE_MODEL_IDS,
   chatThreadDetailSchema,
   chatThreadSummarySchema,
   pendingAssistantStreamStateSchema,
@@ -11,12 +10,6 @@ import {
   type ChatThreadSummary,
   type PersistedChatMessage
 } from "../schemas.ts";
-
-const LEGACY_MODEL_UPGRADES: Record<string, string> = {
-  "openai/gpt-5": "openai/gpt-5.5"
-};
-
-const supportedModelIds = new Set<string>(OPENCODE_MODEL_IDS);
 
 export type ChatThreadRow = {
   id: string;
@@ -71,25 +64,12 @@ function parseAssistantStream(value: string | null | undefined) {
   }
 }
 
-function normalizePersistedModel(value: string | null) {
-  if (!value) {
-    return null;
-  }
-
-  const upgradedValue = LEGACY_MODEL_UPGRADES[value] ?? value;
-
-  return supportedModelIds.has(upgradedValue) ? upgradedValue : null;
-}
-
 export function mapThreadSummaryRow(row: ChatThreadRow): ChatThreadSummary {
-  const legacyQmd = row.engine === "qmd";
-  const model = legacyQmd ? DEFAULT_MODEL_ID : normalizePersistedModel(row.model);
-
   return chatThreadSummarySchema.parse({
     ...row,
-    engine: legacyQmd ? "opencode" : row.engine,
-    model,
-    openAiRoute: legacyQmd ? DEFAULT_OPENAI_ROUTE : model?.startsWith("openai/") ? row.openAiRoute ?? "subscription" : null
+    engine: "opencode",
+    model: DEFAULT_MODEL_ID,
+    openAiRoute: DEFAULT_OPENAI_ROUTE
   });
 }
 

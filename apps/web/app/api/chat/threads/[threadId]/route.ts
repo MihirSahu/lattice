@@ -52,8 +52,6 @@ export async function PATCH(request: Request, context: RouteContext) {
       threadId,
       userEmail: identity.userEmail,
       ...parsed,
-      model: parsed.model,
-      openAiRoute: parsed.openAiRoute
     });
 
     if (!thread) {

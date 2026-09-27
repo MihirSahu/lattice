@@ -10,8 +10,6 @@ export async function POST(request: Request) {
       question: parsed.question,
       folder: parsed.folder,
       engine: parsed.engine ?? "opencode",
-      model: parsed.model,
-      openAiRoute: parsed.openAiRoute,
       limit: parsed.limit
     });
 

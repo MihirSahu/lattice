@@ -2,9 +2,6 @@ SHELL := /bin/bash
 
 COMPOSE_FILE := infra/docker/docker-compose.yml
 COMPOSE_FLAGS := --env-file .env -f $(COMPOSE_FILE)
-ifeq ($(SUBSCRIPTION),1)
-COMPOSE_FLAGS += -f infra/docker/docker-compose.subscription.yml
-endif
 
 -include .env
 export

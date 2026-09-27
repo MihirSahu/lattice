@@ -1,4 +1,4 @@
-import { DEFAULT_MODEL_ID, DEFAULT_OPENAI_ROUTE, isAllowedModelId } from "@lattice/model-catalog";
+import { DEFAULT_MODEL_ID, DEFAULT_OPENAI_ROUTE } from "@lattice/model-catalog";
 import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { hasAssistantStreamContent } from "@/lib/chat-trace";
@@ -96,10 +96,10 @@ export class DrizzleSqliteChatStore implements ChatStore {
       .update(chatThreads)
       .set({
         title: input.title ?? existingThread.title,
-        engine: input.engine ?? existingThread.engine,
+        engine: "opencode",
         folder: input.folder ?? existingThread.folder,
-        model: input.model !== undefined ? input.model : existingThread.model,
-        openAiRoute: input.openAiRoute !== undefined ? input.openAiRoute : existingThread.openAiRoute,
+        model: DEFAULT_MODEL_ID,
+        openAiRoute: DEFAULT_OPENAI_ROUTE,
         updatedAt: new Date().toISOString()
       })
       .where(and(eq(chatThreads.id, input.threadId), eq(chatThreads.userEmail, input.userEmail)));
@@ -119,15 +119,6 @@ export class DrizzleSqliteChatStore implements ChatStore {
     const { db, sqlite } = getChatDatabase();
     const now = new Date().toISOString();
     const nextThreadId = input.threadId ?? randomUUID();
-    const model = isAllowedModelId(input.successResponse?.model)
-      ? input.successResponse.model
-      : input.model ?? DEFAULT_MODEL_ID;
-    // Store the effective route explicitly so new API-default chats cannot be
-    // mistaken for legacy subscription chats when the caller omits settings.
-    const openAiRoute = model.startsWith("openai/")
-      ? input.successResponse?.openAiRoute ?? input.openAiRoute ?? DEFAULT_OPENAI_ROUTE
-      : null;
-
     sqlite.transaction(() => {
       if (input.threadId) {
         const existingThread = db
@@ -143,10 +134,10 @@ export class DrizzleSqliteChatStore implements ChatStore {
         db
           .update(chatThreads)
           .set({
-            engine: input.engine,
+            engine: "opencode",
             folder: input.folder ?? "",
-            model,
-            openAiRoute,
+            model: DEFAULT_MODEL_ID,
+            openAiRoute: DEFAULT_OPENAI_ROUTE,
             updatedAt: now
           })
           .where(and(eq(chatThreads.id, nextThreadId), eq(chatThreads.userEmail, input.userEmail)))
@@ -156,10 +147,10 @@ export class DrizzleSqliteChatStore implements ChatStore {
           id: nextThreadId,
           userEmail: input.userEmail,
           title: truncateTitle(input.question),
-          engine: input.engine,
+          engine: "opencode",
           folder: input.folder ?? "",
-          model,
-          openAiRoute,
+          model: DEFAULT_MODEL_ID,
+          openAiRoute: DEFAULT_OPENAI_ROUTE,
           createdAt: now,
           updatedAt: now
         }).run();

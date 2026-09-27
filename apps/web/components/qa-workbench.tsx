@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { ChatComposer } from "@/components/chat-composer";
 import { ChatMessageList } from "@/components/chat-message-list";
@@ -15,7 +15,6 @@ import {
   chatQueryKeys,
   HttpError,
   useAskChatMutation,
-  useOpencodeModelsQuery,
   useSourceFoldersQuery,
   useThreadDetailQuery,
   useThreadSummariesQuery,
@@ -23,15 +22,10 @@ import {
 } from "@/lib/chat-hooks";
 import { applyStreamEventToState, createPendingAssistantStreamState } from "@/lib/chat-trace";
 import {
-  FALLBACK_OPENCODE_MODEL,
   createDraftThreadSettings,
   DEFAULT_THREAD_TITLE,
-  isLegacyDefaultOpencodeModel,
-  isOpenAiOpencodeModel,
   loadLocalChatCache,
   loadLocalChatUiState,
-  normalizeOpenAiRoute,
-  normalizeOpencodeModel,
   saveLocalChatCache,
   saveLocalChatUiState,
   toDisplayMessages,
@@ -42,8 +36,6 @@ import {
   type ChatThreadDetail,
   type ChatThreadSummary,
   type DraftThreadSettings,
-  type OpencodeOpenAiRoute,
-  type OpencodeModelId,
   type PendingAssistantStreamState
 } from "@/lib/schemas";
 
@@ -112,11 +104,8 @@ export function QaWorkbench() {
   const [navVisible, setNavVisible] = useState(true);
   const [desktopViewport, setDesktopViewport] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
-  const [explicitLegacyDraftModel, setExplicitLegacyDraftModel] = useState(false);
-  const [explicitLegacyThreadModels, setExplicitLegacyThreadModels] = useState<Set<string>>(() => new Set());
 
   const sourceFoldersQuery = useSourceFoldersQuery();
-  const opencodeModelsQuery = useOpencodeModelsQuery();
   const threadSummariesQuery = useThreadSummariesQuery();
   const threadDetailQuery = useThreadDetailQuery(selectedThreadId);
   const askMutation = useAskChatMutation();
@@ -129,22 +118,7 @@ export function QaWorkbench() {
   const loadingFolders = sourceFoldersQuery.isLoading && !sourceFoldersQuery.data;
   const sourceFolders = sourceFoldersQuery.data ?? [];
   const sourcesError = sourceFoldersQuery.error instanceof Error ? sourceFoldersQuery.error.message : null;
-  const opencodeModels = opencodeModelsQuery.data ?? [];
-  const defaultOpencodeModel = useMemo(
-    () => opencodeModels.find((model) => model.isDefault)?.id ?? FALLBACK_OPENCODE_MODEL,
-    [opencodeModels]
-  );
   const interactionDisabled = askMutation.isPending || updateThreadSettingsMutation.isPending;
-
-  useEffect(() => {
-    setDraftThreadSettings((current) => ({
-      ...current,
-      model: normalizeOpencodeModel(current.model, defaultOpencodeModel, {
-        upgradeLegacyDefault: !explicitLegacyDraftModel
-      }),
-      openAiRoute: normalizeOpenAiRoute(current.openAiRoute, current.model)
-    }));
-  }, [defaultOpencodeModel, explicitLegacyDraftModel]);
 
   useEffect(() => {
     if (!liveUserEmail) {
@@ -159,7 +133,7 @@ export function QaWorkbench() {
       return;
     }
 
-    const savedUiState = loadLocalChatUiState(authenticatedUserEmail, defaultOpencodeModel);
+    const savedUiState = loadLocalChatUiState(authenticatedUserEmail);
     const savedCache = loadLocalChatCache(authenticatedUserEmail);
 
     if (savedCache?.lastThreadDetail) {
@@ -169,14 +143,12 @@ export function QaWorkbench() {
     setSelectedThreadId(savedUiState.selectedThreadId);
     setDraftQuestion(savedUiState.draftQuestion);
     setDraftThreadSettings(savedUiState.draftThreadSettings);
-    setExplicitLegacyDraftModel(false);
-    setExplicitLegacyThreadModels(new Set());
     setSidebarCollapsed(savedUiState.sidebarCollapsed);
     setPendingAsk(null);
     pendingStreamRef.current = null;
     setRequestError(null);
     hydratedUserEmailRef.current = authenticatedUserEmail;
-  }, [authenticatedUserEmail, defaultOpencodeModel, queryClient]);
+  }, [authenticatedUserEmail, queryClient]);
 
   useEffect(() => {
     if (selectedThreadId && threadSummariesQuery.data && !threadSummaries.some((thread) => thread.id === selectedThreadId)) {
@@ -241,13 +213,6 @@ export function QaWorkbench() {
   }, [authenticatedUserEmail, liveUserEmail, threadDetailQuery.data, threadSummaries, threadSummariesQuery.data]);
 
   const selectedFolder = activeThread?.folder ?? draftThreadSettings.folder;
-  const selectedModel = normalizeOpencodeModel(activeThread?.model ?? draftThreadSettings.model, defaultOpencodeModel, {
-    upgradeLegacyDefault: activeThread ? !explicitLegacyThreadModels.has(activeThread.id) : !explicitLegacyDraftModel
-  });
-  const selectedOpenAiRoute = normalizeOpenAiRoute(
-    activeThread?.openAiRoute ?? draftThreadSettings.openAiRoute,
-    selectedModel
-  );
   const visibleMessages = toDisplayMessages(activeThread?.messages ?? [], getPendingOverlayForThread(selectedThreadId, pendingAsk), resolvedStreams);
   const isChatMode = visibleMessages.length > 0;
   const unauthorizedQueryError = getUnauthorizedError(threadSummariesQuery.error) ?? getUnauthorizedError(threadDetailQuery.error);
@@ -494,7 +459,6 @@ export function QaWorkbench() {
     setDraftQuestion("");
     setNavVisible(true);
     pendingStreamRef.current = null;
-    setExplicitLegacyDraftModel(false);
     setRequestError(null);
   }
 
@@ -524,38 +488,16 @@ export function QaWorkbench() {
     );
   }
 
-  function handleThreadSettingsPatch(patch: {
-    folder?: string;
-    model?: OpencodeModelId | null;
-    openAiRoute?: OpencodeOpenAiRoute | null;
-  }) {
+  function handleThreadSettingsPatch(patch: { folder?: string }) {
     if (!activeThread || interactionDisabled) {
       return;
     }
 
     setRequestError(null);
-    const nextModel = patch.model === undefined ? activeThread.model : patch.model;
-    const normalizedPatch = {
-      ...patch,
-      ...(activeThread.engine === "opencode" &&
-      patch.model === undefined &&
-      !explicitLegacyThreadModels.has(activeThread.id) &&
-      isLegacyDefaultOpencodeModel(activeThread.model)
-        ? {
-            model: defaultOpencodeModel
-          }
-        : {}),
-      ...(patch.openAiRoute === undefined && isOpenAiOpencodeModel(nextModel)
-        ? {
-            openAiRoute: selectedOpenAiRoute
-          }
-        : {})
-    };
-
     updateThreadSettingsMutation.mutate(
       {
         threadId: activeThread.id,
-        ...normalizedPatch
+        ...patch
       },
       {
         onSuccess: (thread) => {
@@ -586,54 +528,6 @@ export function QaWorkbench() {
         }
       }
     );
-  }
-
-  function handleModelChange(value: OpencodeModelId) {
-    const nextOpenAiRoute = isOpenAiOpencodeModel(value) ? selectedOpenAiRoute : null;
-
-    if (activeThread) {
-      setExplicitLegacyThreadModels((current) => {
-        const next = new Set(current);
-
-        if (isLegacyDefaultOpencodeModel(value)) {
-          next.add(activeThread.id);
-        } else {
-          next.delete(activeThread.id);
-        }
-
-        return next;
-      });
-      handleThreadSettingsPatch({
-        model: value,
-        openAiRoute: nextOpenAiRoute
-      });
-      return;
-    }
-
-    setExplicitLegacyDraftModel(isLegacyDefaultOpencodeModel(value));
-    setDraftThreadSettings((current) => ({
-      ...current,
-      model: value,
-      openAiRoute: isOpenAiOpencodeModel(value) ? normalizeOpenAiRoute(current.openAiRoute, value) : current.openAiRoute
-    }));
-  }
-
-  function handleOpenAiRouteChange(value: OpencodeOpenAiRoute) {
-    if (!isOpenAiOpencodeModel(selectedModel)) {
-      return;
-    }
-
-    if (activeThread) {
-      handleThreadSettingsPatch({
-        openAiRoute: value
-      });
-      return;
-    }
-
-    setDraftThreadSettings((current) => ({
-      ...current,
-      openAiRoute: value
-    }));
   }
 
   function handleFolderChange(value: string) {
@@ -683,8 +577,6 @@ export function QaWorkbench() {
         question: submittedQuestion,
         engine: "opencode",
         folder: selectedFolder || undefined,
-        model: selectedModel,
-        openAiRoute: isOpenAiOpencodeModel(selectedModel) ? selectedOpenAiRoute : undefined,
         onStreamEvent: (event) => {
           setPendingAsk((current) => {
             if (!current || current.createdAt !== overlay.createdAt) {
@@ -763,15 +655,10 @@ export function QaWorkbench() {
       docked={isChatMode}
       draftQuestion={draftQuestion}
       onDraftQuestionChange={setDraftQuestion}
-      selectedModel={selectedModel}
-      onModelChange={handleModelChange}
-      selectedOpenAiRoute={selectedOpenAiRoute}
-      onOpenAiRouteChange={handleOpenAiRouteChange}
       mobileSettingsOpen={mobileSettingsOpen}
       onMobileSettingsOpenChange={setMobileSettingsOpen}
       selectedFolder={selectedFolder}
       onFolderChange={handleFolderChange}
-      opencodeModels={opencodeModels}
       sourceFolders={sourceFolders}
       loadingFolders={loadingFolders}
       loadingAnswer={askMutation.isPending}

@@ -8,24 +8,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { InputGroup, InputGroupBody, InputGroupFooter } from "@/components/ui/input-group";
 import { LoadingDots } from "@/components/ui/loading-dots";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { shouldShowOpenAiRouteToggle } from "@/lib/chat-local-state";
-import type { OpencodeModelId, OpencodeModelOption, OpencodeOpenAiRoute, SourceFolder } from "@/lib/schemas";
+import type { SourceFolder } from "@/lib/schemas";
 import { cn } from "@/lib/utils";
 
 type ChatComposerProps = {
   docked?: boolean;
   draftQuestion: string;
   onDraftQuestionChange: (value: string) => void;
-  selectedModel: OpencodeModelId;
-  onModelChange: (value: OpencodeModelId) => void;
-  selectedOpenAiRoute: OpencodeOpenAiRoute;
-  onOpenAiRouteChange: (value: OpencodeOpenAiRoute) => void;
   mobileSettingsOpen: boolean;
   onMobileSettingsOpenChange: (open: boolean) => void;
   selectedFolder: string;
   onFolderChange: (value: string) => void;
-  opencodeModels: OpencodeModelOption[];
   sourceFolders: SourceFolder[];
   loadingFolders: boolean;
   loadingAnswer: boolean;
@@ -37,15 +30,10 @@ export function ChatComposer({
   docked = false,
   draftQuestion,
   onDraftQuestionChange,
-  selectedModel,
-  onModelChange,
-  selectedOpenAiRoute,
-  onOpenAiRouteChange,
   mobileSettingsOpen,
   onMobileSettingsOpenChange,
   selectedFolder,
   onFolderChange,
-  opencodeModels,
   sourceFolders,
   loadingFolders,
   loadingAnswer,
@@ -53,8 +41,6 @@ export function ChatComposer({
   onSubmit
 }: ChatComposerProps) {
   const mobileTextareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const selectedModelOption = opencodeModels.find((model) => model.id === selectedModel) ?? opencodeModels[0] ?? null;
-  const showOpenAiRouteToggle = shouldShowOpenAiRouteToggle(selectedModel);
 
   useEffect(() => {
     const textarea = mobileTextareaRef.current;
@@ -150,57 +136,6 @@ export function ChatComposer({
 
           <InputGroupFooter className={cn("hidden lg:flex", docked ? "chat-composer-footer" : undefined)}>
             <div className="flex flex-wrap items-center gap-3 text-[var(--text-tertiary)]">
-              {opencodeModels.length > 0 ? (
-                <Select
-                  value={selectedModel}
-                  onValueChange={(value) => onModelChange(value as OpencodeModelId)}
-                  disabled={loadingAnswer}
-                >
-                  <SelectTrigger
-                    className={cn(
-                      "linear-pill w-fit max-w-[320px] gap-3 border-[var(--border-strong)] px-4 py-2 font-[400] shadow-none transition-[width,padding,background-color,border-color,color] duration-300 ease-out",
-                      docked ? "chat-composer-pill h-9" : "bg-[var(--bg-page)]"
-                    )}
-                  >
-                    <span className="min-w-0 truncate text-left">
-                      {selectedModelOption?.label ?? "OpenCode model"}
-                    </span>
-                  </SelectTrigger>
-                  <SelectContent className="min-w-[280px]">
-                    {opencodeModels.map((model) => (
-                      <SelectItem key={model.id} value={model.id}>
-                        <div className="flex min-w-0 flex-col">
-                          <span>{model.label}</span>
-                          <span className="text-[12px] leading-[1.4] text-[var(--text-tertiary)]">{model.description}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : null}
-
-              {showOpenAiRouteToggle ? (
-                <ToggleGroup
-                  type="single"
-                  value={selectedOpenAiRoute}
-                  onValueChange={(value) => {
-                    if (value === "subscription" || value === "openrouter") {
-                      onOpenAiRouteChange(value);
-                    }
-                  }}
-                  disabled={loadingAnswer}
-                  className="h-9 rounded-full bg-[var(--bg-button-subtle)] p-1"
-                  aria-label="OpenAI route"
-                >
-                  <ToggleGroupItem value="subscription" className="h-7">
-                    Subscription
-                  </ToggleGroupItem>
-                  <ToggleGroupItem value="openrouter" className="h-7">
-                    OpenRouter
-                  </ToggleGroupItem>
-                </ToggleGroup>
-              ) : null}
-
               <Select
                 value={selectedFolder || "__all__"}
                 onValueChange={(value) => onFolderChange(value === "__all__" ? "" : value)}
@@ -245,13 +180,8 @@ export function ChatComposer({
         <MobileChatSettings
           open={mobileSettingsOpen}
           onOpenChange={onMobileSettingsOpenChange}
-          selectedModel={selectedModel}
-          onModelChange={onModelChange}
-          selectedOpenAiRoute={selectedOpenAiRoute}
-          onOpenAiRouteChange={onOpenAiRouteChange}
           selectedFolder={selectedFolder}
           onFolderChange={onFolderChange}
-          opencodeModels={opencodeModels}
           sourceFolders={sourceFolders}
           loadingFolders={loadingFolders}
           loadingAnswer={loadingAnswer}

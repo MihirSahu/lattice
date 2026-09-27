@@ -21,14 +21,13 @@ export default function FeaturesSection() {
             </div>
             <div className="feature-title">Grounded Vault Answers</div>
             <div className="feature-desc">
-              Ask questions about your mirrored vault with OpenCode and your preferred model.
+              Ask questions about your mirrored vault with OpenCode and GPT-6 Luna.
               Keep answers grounded in your notes with source citations.
             </div>
             <div className="feature-tags">
               <span className="feature-tag">OpenCode</span>
-              <span className="feature-tag">Claude Sonnet 4.6</span>
-              <span className="feature-tag">GPT-5</span>
-              <span className="feature-tag">Gemini 2.5</span>
+              <span className="feature-tag">GPT-6 Luna</span>
+              <span className="feature-tag">OpenRouter</span>
               <span className="feature-tag">Grok-4</span>
             </div>
           </div>

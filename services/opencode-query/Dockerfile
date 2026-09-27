@@ -22,8 +22,7 @@ ENV NODE_ENV=production
 COPY --from=builder /prod/service ./services/opencode-query
 # Bypass the npm launcher: the SDK must own the native server PID for shutdown.
 RUN test -x /app/services/opencode-query/node_modules/opencode-ai/bin/opencode.exe \
-  && ln -s /app/services/opencode-query/node_modules/opencode-ai/bin/opencode.exe /usr/local/bin/opencode \
-  && mkdir -p /app/opencode-data/opencode
+  && ln -s /app/services/opencode-query/node_modules/opencode-ai/bin/opencode.exe /usr/local/bin/opencode
 ENV OPENCODE_QUERY_PORT=8282
 EXPOSE 8282
 CMD ["node", "services/opencode-query/dist/server.js"]

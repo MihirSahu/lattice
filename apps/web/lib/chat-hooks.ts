@@ -7,14 +7,12 @@ import {
   chatThreadDetailResponseSchema,
   chatThreadSummaryResponseSchema,
   chatThreadsResponseSchema,
-  opencodeModelsResponseSchema,
   sourceFoldersResponseSchema,
   type ChatAskRequest,
   type ChatAskResponse,
   type ChatThreadDetail,
   type ChatThreadSummary,
   type ChatThreadsResponse,
-  type OpencodeModelOption,
   type SourceFolder
 } from "@/lib/schemas";
 
@@ -23,8 +21,6 @@ type ThreadPatchRequest = {
   title?: string;
   engine?: "opencode";
   folder?: string;
-  model?: ChatAskRequest["model"] | null;
-  openAiRoute?: ChatAskRequest["openAiRoute"] | null;
 };
 
 export type ChatAskStreamRequest = ChatAskRequest & {
@@ -33,7 +29,6 @@ export type ChatAskStreamRequest = ChatAskRequest & {
 
 export const chatQueryKeys = {
   sourceFolders: ["source-folders"] as const,
-  opencodeModels: ["opencode-models"] as const,
   threadSummaries: ["chat", "threads"] as const,
   threadDetail: (threadId: string) => ["chat", "threads", threadId] as const
 };
@@ -82,9 +77,7 @@ async function updateThreadSettings(request: ThreadPatchRequest): Promise<ChatTh
       body: JSON.stringify({
         title: request.title,
         engine: request.engine,
-        folder: request.folder,
-        model: request.model,
-        openAiRoute: request.openAiRoute
+        folder: request.folder
       })
     },
     (json) => chatThreadSummaryResponseSchema.parse(json).thread
@@ -102,9 +95,7 @@ async function askChat(request: ChatAskStreamRequest): Promise<ChatAskResponse> 
       threadId: request.threadId,
       question: request.question,
       engine: request.engine,
-      folder: request.folder,
-      model: request.model,
-      openAiRoute: request.openAiRoute
+      folder: request.folder
     }),
     cache: "no-store"
   });
@@ -149,22 +140,10 @@ async function getSourceFolders(): Promise<SourceFolder[]> {
   return fetchJson("/api/sources", { method: "GET" }, (json) => sourceFoldersResponseSchema.parse(json).folders);
 }
 
-async function getOpencodeModels(): Promise<OpencodeModelOption[]> {
-  return fetchJson("/api/models", { method: "GET" }, (json) => opencodeModelsResponseSchema.parse(json).models);
-}
-
 export function useSourceFoldersQuery(initialData?: SourceFolder[]) {
   return useQuery<SourceFolder[]>({
     queryKey: chatQueryKeys.sourceFolders,
     queryFn: getSourceFolders,
-    initialData
-  });
-}
-
-export function useOpencodeModelsQuery(initialData?: OpencodeModelOption[]) {
-  return useQuery<OpencodeModelOption[]>({
-    queryKey: chatQueryKeys.opencodeModels,
-    queryFn: getOpencodeModels,
     initialData
   });
 }

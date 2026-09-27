@@ -39,8 +39,7 @@ function previewQuestion(value: string) {
 }
 
 export async function executeQueryEngineRequest(
-  input: Pick<ChatAskRequest, "engine" | "folder" | "model" | "question"> & {
-    openAiRoute?: ChatAskRequest["openAiRoute"];
+  input: Pick<ChatAskRequest, "engine" | "folder" | "question"> & {
     limit?: number;
   },
   options: ExecuteQueryEngineOptions = {}
@@ -67,8 +66,6 @@ export async function executeQueryEngineRequest(
       body: JSON.stringify({
         question: input.question,
         folder: input.folder || undefined,
-        model: input.model,
-        openAiRoute: input.openAiRoute,
         limit: effectiveLimit
       }),
       cache: "no-store"

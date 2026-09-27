@@ -3,16 +3,7 @@ import { isAbsolute, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createOpencodeClient, createOpencodeServer } from "@opencode-ai/sdk";
 import type { ServerOptions } from "@opencode-ai/sdk/server";
-import { loadOpenAiAuth, type LoadedOpenAiAuth } from "./openai-auth.js";
-import {
-  DEFAULT_OPENAI_ROUTE,
-  type AllowedModelId,
-  type OpenAiRoute,
-  resolveDefaultModelId,
-  resolveOpenAiRoute,
-  resolveOpenCodeModelSelection,
-  resolveRequestedModelId
-} from "./model-catalog.js";
+import { DEFAULT_MODEL_ID, resolveOpenCodeModelSelection } from "./model-catalog.js";
 import {
   encodeNdjsonEvent,
   type OpenCodeTraceEvent,
@@ -28,8 +19,6 @@ type WorkerRequest = {
   question?: unknown;
   limit?: unknown;
   requestId?: unknown;
-  model?: unknown;
-  openAiRoute?: unknown;
 };
 
 type TextPart = {
@@ -316,7 +305,7 @@ function classifyWorkerError(error: unknown, details: string[]): WorkerErrorResp
       error:
         provider === "openai"
           ? "OpenAI appears to have rejected the request for quota, billing, or plan access reasons."
-          : "OpenRouter credits appear to be exhausted. Add credits or switch models, then try again.",
+          : "OpenRouter credits appear to be exhausted. Add credits, then try again.",
       details: nextDetails
     };
   }
@@ -874,81 +863,32 @@ async function pickOpenPort() {
   });
 }
 
-export async function resolveOpenCodeRuntimeConfig(
-  selectedModel: AllowedModelId,
-  openAiRoute: OpenAiRoute = DEFAULT_OPENAI_ROUTE,
-  env: WorkerEnv = process.env
-) {
-  const modelSelection = resolveOpenCodeModelSelection(selectedModel, openAiRoute);
-  const baseConfig: OpenCodeServerConfig = {
+export async function resolveOpenCodeRuntimeConfig(env: WorkerEnv = process.env) {
+  if (!env.OPENROUTER_API_KEY?.trim()) {
+    throw new Error("OPENROUTER_API_KEY is not configured.");
+  }
+  const modelSelection = resolveOpenCodeModelSelection();
+  const config: OpenCodeServerConfig = {
     model: modelSelection.configModel,
-    enabled_providers: [modelSelection.providerID],
+    small_model: modelSelection.configModel,
+    enabled_providers: ["openrouter"],
     tools: disabledSubagentTools,
-    agent: {
-      general: {
-        tools: disabledSubagentTools
-      }
-    },
-    permission: {
-      edit: "deny",
-      bash: "allow",
-      webfetch: "deny"
-    }
-  };
-
-  if (modelSelection.providerID === "openrouter") {
-    if (!env.OPENROUTER_API_KEY) {
-      throw new Error("OPENROUTER_API_KEY is not configured.");
-    }
-
-    return {
-      modelSelection,
-      openAiAuth: null,
-      config: {
-        ...baseConfig,
-        provider: {
-          openrouter: {
-            options: {
-              apiKey: env.OPENROUTER_API_KEY
-            }
+    agent: { general: { tools: disabledSubagentTools } },
+    permission: { edit: "deny", bash: "allow", webfetch: "deny" },
+    provider: {
+      openrouter: {
+        whitelist: [DEFAULT_MODEL_ID],
+        options: { apiKey: env.OPENROUTER_API_KEY },
+        models: {
+          [DEFAULT_MODEL_ID]: {
+            // Luna supports Chat Completions tool calls with reasoning disabled.
+            options: { reasoning: { effort: "none" } }
           }
         }
       }
-    };
-  }
-
-  const openAiAuth = await loadOpenAiAuth(env);
-
-  if (!openAiAuth) {
-    throw new Error("OpenAI auth is not configured. Set OPENCODE_OPENAI_AUTH_FILE to a mounted OpenCode auth.json file.");
-  }
-
-  return {
-    modelSelection,
-    openAiAuth,
-    config: baseConfig
+    }
   };
-}
-
-export async function setOpenAiAuth(
-  client: ReturnType<typeof createOpencodeClient>,
-  auth: LoadedOpenAiAuth,
-  requestId: string
-) {
-  const expiresAt = new Date(auth.expires).toISOString();
-  logProgress(requestId, `openai_auth_set_start source=${auth.source} expires=${expiresAt}`);
-  await client.auth.set({
-    responseStyle: "data",
-    throwOnError: true,
-    path: {
-      id: "openai"
-    },
-    query: {
-      directory: scopeRoot
-    },
-    body: auth.auth
-  });
-  logProgress(requestId, `openai_auth_set_finish source=${auth.source} expires=${expiresAt}`);
+  return { modelSelection, config };
 }
 
 async function runPrompt(
@@ -1113,19 +1053,18 @@ async function main() {
   const requestId = typeof payload.requestId === "string" && payload.requestId.trim()
     ? payload.requestId.trim()
     : "unknown";
-  const selectedModel = resolveRequestedModelId(payload.model, resolveDefaultModelId());
-  const openAiRoute = resolveOpenAiRoute(payload.openAiRoute);
+  const selectedModel = DEFAULT_MODEL_ID;
 
   if (!question) {
     throw new Error("Question is required.");
   }
 
-  const runtimeConfig = await resolveOpenCodeRuntimeConfig(selectedModel, openAiRoute);
+  const runtimeConfig = await resolveOpenCodeRuntimeConfig();
 
   const serverPort = await pickOpenPort();
   logProgress(
     requestId,
-    `start limit=${limit} provider=${runtimeConfig.modelSelection.providerID} model=${runtimeConfig.modelSelection.modelID} openai_route=${openAiRoute} scope=${scopeRoot === vaultRoot ? "." : scopeRoot.slice(vaultRoot.length + 1)} heartbeat_ms=${promptHeartbeatMs} question="${previewQuestion(question)}"`
+    `start limit=${limit} provider=${runtimeConfig.modelSelection.providerID} model=${runtimeConfig.modelSelection.modelID} scope=${scopeRoot === vaultRoot ? "." : scopeRoot.slice(vaultRoot.length + 1)} heartbeat_ms=${promptHeartbeatMs} question="${previewQuestion(question)}"`
   );
   const serverAbort = new AbortController();
   let opencodeServer: Awaited<ReturnType<typeof createOpencodeServer>> | null = null;
@@ -1161,9 +1100,6 @@ async function main() {
     });
 
     logProgress(requestId, `opencode_server_ready port=${serverPort}`);
-    if (runtimeConfig.openAiAuth) {
-      await setOpenAiAuth(client, runtimeConfig.openAiAuth, requestId);
-    }
     await writeEvent({ type: "status", message: "OpenCode server is ready." });
     const result = await runPrompt(client, question, selectedModel, runtimeConfig.modelSelection, requestId, (event) =>
       writeEvent(event)
