@@ -670,7 +670,7 @@ export function QaWorkbench() {
   return (
     <div
       ref={rootShellRef}
-      className="fixed inset-x-0 top-[var(--mobile-visual-viewport-top,0px)] flex h-[var(--mobile-visual-viewport-height,100dvh)] overflow-hidden bg-[var(--bg-page)] lg:static lg:h-screen"
+      className="fixed inset-x-0 top-(--mobile-visual-viewport-top,0px) flex h-(--mobile-visual-viewport-height,100dvh) overflow-hidden bg-(--bg-page) lg:static lg:h-screen"
     >
       <ChatSidebar
         activeThreadId={selectedThreadId}
@@ -722,8 +722,8 @@ export function QaWorkbench() {
                 <div
                   className={`mb-4 rounded-2xl border px-4 py-3 text-[13px] leading-[1.6] ${
                     topNotice.tone === "error"
-                      ? "border-[rgba(196,92,71,0.25)] bg-[var(--bg-panel)] text-[var(--text-secondary)]"
-                      : "border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-tertiary)]"
+                      ? "border-[rgba(196,92,71,0.25)] bg-(--bg-panel) text-(--text-secondary)"
+                      : "border-(--border-subtle) bg-(--bg-surface) text-(--text-tertiary)"
                   }`}
                 >
                   {topNotice.message}
@@ -743,7 +743,7 @@ export function QaWorkbench() {
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-10 w-10 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] lg:hidden"
+                className="h-10 w-10 rounded-2xl border border-(--border-subtle) bg-(--bg-surface) lg:hidden"
                 onClick={() => setMobileSidebarOpen(true)}
                 title="Open sidebar"
               >
@@ -754,7 +754,7 @@ export function QaWorkbench() {
                 type="button"
                 variant="outline"
                 size="icon"
-                className="hidden h-10 w-10 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] lg:inline-flex"
+                className="hidden h-10 w-10 rounded-2xl border border-(--border-subtle) bg-(--bg-surface) lg:inline-flex"
                 onClick={() => setSidebarCollapsed((current) => !current)}
                 title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               >
@@ -766,14 +766,14 @@ export function QaWorkbench() {
             <div className="mx-auto hidden w-full max-w-[1080px] flex-1 flex-col items-center justify-center lg:flex">
               <div className="mb-8 text-center sm:mb-10">
                 <div className="inline-flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] sm:h-12 sm:w-12">
-                    <LatticeMark className="h-5 w-5 text-[var(--text-primary)]/90 sm:h-6 sm:w-6" />
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-(--border-subtle) bg-(--bg-surface) sm:h-12 sm:w-12">
+                    <LatticeMark className="h-5 w-5 text-(--text-primary)/90 sm:h-6 sm:w-6" />
                   </div>
-                  <h1 className="text-[36px] font-[600] leading-[1.1] tracking-[-0.9px] text-[var(--text-primary)] sm:text-[48px] sm:tracking-[-1.2px]">
+                  <h1 className="text-[36px] font-semibold leading-[1.1] tracking-[-0.9px] text-(--text-primary) sm:text-[48px] sm:tracking-[-1.2px]">
                     Lattice
                   </h1>
                 </div>
-                <p className="mx-auto mt-3 max-w-[560px] text-[16px] font-[400] leading-[1.5] text-[var(--text-tertiary)]">
+                <p className="mx-auto mt-3 max-w-[560px] text-[16px] font-normal leading-normal text-(--text-tertiary)">
                   What would you like to know?
                 </p>
               </div>
@@ -782,8 +782,8 @@ export function QaWorkbench() {
                 <div
                   className={`mb-4 w-full max-w-[1040px] rounded-2xl border px-4 py-3 text-[13px] leading-[1.6] ${
                     topNotice.tone === "error"
-                      ? "border-[rgba(196,92,71,0.25)] bg-[var(--bg-panel)] text-[var(--text-secondary)]"
-                      : "border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-tertiary)]"
+                      ? "border-[rgba(196,92,71,0.25)] bg-(--bg-panel) text-(--text-secondary)"
+                      : "border-(--border-subtle) bg-(--bg-surface) text-(--text-tertiary)"
                   }`}
                 >
                   {topNotice.message}
@@ -797,14 +797,14 @@ export function QaWorkbench() {
               <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden py-4 text-center">
                 <div>
                   <div className="inline-flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-                      <LatticeMark className="h-5 w-5 text-[var(--text-primary)]/90" />
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-(--border-subtle) bg-(--bg-surface)">
+                      <LatticeMark className="h-5 w-5 text-(--text-primary)/90" />
                     </div>
-                    <h1 className="text-[36px] font-[600] leading-[1.1] tracking-[-0.9px] text-[var(--text-primary)] sm:text-[48px] sm:tracking-[-1.2px]">
+                    <h1 className="text-[36px] font-semibold leading-[1.1] tracking-[-0.9px] text-(--text-primary) sm:text-[48px] sm:tracking-[-1.2px]">
                       Lattice
                     </h1>
                   </div>
-                  <p className="mx-auto mt-3 max-w-[560px] text-[16px] font-[400] leading-[1.5] text-[var(--text-tertiary)]">
+                  <p className="mx-auto mt-3 max-w-[560px] text-[16px] font-normal leading-normal text-(--text-tertiary)">
                     What would you like to know?
                   </p>
                 </div>
@@ -814,8 +814,8 @@ export function QaWorkbench() {
                 <div
                   className={`mb-4 shrink-0 rounded-2xl border px-4 py-3 text-[13px] leading-[1.6] ${
                     topNotice.tone === "error"
-                      ? "border-[rgba(196,92,71,0.25)] bg-[var(--bg-panel)] text-[var(--text-secondary)]"
-                      : "border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-tertiary)]"
+                      ? "border-[rgba(196,92,71,0.25)] bg-(--bg-panel) text-(--text-secondary)"
+                      : "border-(--border-subtle) bg-(--bg-surface) text-(--text-tertiary)"
                   }`}
                 >
                   {topNotice.message}

@@ -4,6 +4,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: resolve(process.cwd(), "../.."),
+  outputFileTracingIncludes: {
+    "/api/chat/**": ["./drizzle/*.sql"]
+  },
   transpilePackages: ["@lobehub/icons"]
 };
 

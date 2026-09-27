@@ -14,12 +14,12 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 const variantClasses: Record<ButtonVariant, string> = {
   default: "linear-primary-button",
   outline: "linear-ghost-button",
-  ghost: "border border-transparent bg-transparent text-[var(--text-primary)] hover:bg-[var(--bg-button-subtle)]"
+  ghost: "border border-transparent bg-transparent text-(--text-primary) hover:bg-(--bg-button-subtle)"
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
-  default: "h-10 rounded-md px-4 py-2 text-[16px] font-[400] leading-[1.5]",
-  sm: "h-9 rounded-md px-3 py-2 text-[14px] font-[400] leading-[1.5]",
+  default: "h-10 rounded-md px-4 py-2 text-[16px] font-normal leading-normal",
+  sm: "h-9 rounded-md px-3 py-2 text-[14px] font-normal leading-normal",
   icon: "h-10 w-10 rounded-full p-0"
 };
 

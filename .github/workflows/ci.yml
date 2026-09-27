@@ -8,11 +8,11 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version-file: .nvmrc
-      - run: corepack enable && corepack prepare pnpm@11.1.2 --activate
+      - run: corepack enable && corepack prepare pnpm@12.6.0 --activate
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
       - run: pnpm build
@@ -29,7 +29,7 @@ jobs:
           - services/sync-worker/Dockerfile
           - services/scheduler/Dockerfile
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7.0.1
       - run: docker build -f "${{ matrix.dockerfile }}" -t lattice-ci .
       - name: Exercise web image streaming and SQLite cleanup
         if: matrix.dockerfile == 'apps/web/Dockerfile'

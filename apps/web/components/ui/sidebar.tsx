@@ -8,7 +8,7 @@ const Sidebar = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivEle
     <aside
       ref={ref}
       className={cn(
-        "sidebar-shell hidden w-[296px] shrink-0 border-r border-[var(--border-subtle)] bg-[var(--bg-panel)] transition-[width,padding] duration-300 ease-out lg:flex lg:flex-col",
+        "sidebar-shell hidden w-[296px] shrink-0 border-r border-(--border-subtle) bg-(--bg-panel) transition-[width,padding] duration-300 ease-out lg:flex lg:flex-col",
         className
       )}
       {...props}
@@ -26,7 +26,7 @@ SidebarInset.displayName = "SidebarInset";
 
 const SidebarHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("border-b border-[var(--border-subtle)] px-4 py-4", className)} {...props} />
+    <div ref={ref} className={cn("border-b border-(--border-subtle) px-4 py-4", className)} {...props} />
   )
 );
 
@@ -42,7 +42,7 @@ SidebarContent.displayName = "SidebarContent";
 
 const SidebarFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("border-t border-[var(--border-subtle)] px-4 py-4", className)} {...props} />
+    <div ref={ref} className={cn("border-t border-(--border-subtle) px-4 py-4", className)} {...props} />
   )
 );
 
@@ -59,7 +59,7 @@ const SidebarGroupLabel = React.forwardRef<HTMLParagraphElement, React.HTMLAttri
     <p
       ref={ref}
       className={cn(
-        "px-2 pb-2 text-[11px] font-[600] uppercase tracking-[0.14em] text-[var(--text-quaternary)]",
+        "px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-(--text-quaternary)",
         className
       )}
       {...props}
@@ -92,8 +92,8 @@ const SidebarMenuButton = React.forwardRef<HTMLButtonElement, SidebarMenuButtonP
       className={cn(
         "flex w-full flex-col items-start gap-1 rounded-2xl px-3 py-3 text-left transition-colors",
         active
-          ? "bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[inset_0_0_0_1px_var(--border-subtle)]"
-          : "text-[var(--text-secondary)] hover:bg-[var(--bg-surface)]",
+          ? "bg-(--bg-surface) text-(--text-primary) shadow-[inset_0_0_0_1px_var(--border-subtle)]"
+          : "text-(--text-secondary) hover:bg-(--bg-surface)",
         className
       )}
       {...props}

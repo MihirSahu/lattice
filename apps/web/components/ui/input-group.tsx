@@ -8,7 +8,7 @@ const InputGroup = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
     <div
       ref={ref}
       className={cn(
-        "lovable-search-shell rounded-[28px] border border-[var(--border-subtle)] bg-[var(--bg-input)]",
+        "lovable-search-shell rounded-[28px] border border-(--border-subtle) bg-(--bg-input)",
         className
       )}
       {...props}
@@ -34,7 +34,7 @@ const InputGroupFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<H
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn("flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] px-4 py-3", className)}
+      className={cn("flex items-center justify-between gap-3 border-t border-(--border-subtle) px-4 py-3", className)}
       {...props}
     />
   )

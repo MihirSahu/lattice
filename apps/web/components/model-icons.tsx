@@ -12,14 +12,14 @@ type ModelAvatarProps = {
 function avatarShell(child: ReactNode, className?: string) {
   return (
     <div
-      className={className ?? "mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]"}
+      className={className ?? "mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-(--border-subtle) bg-(--bg-surface)"}
     >
       {child}
     </div>
   );
 }
 
-function resolveModelIcon(model?: string, iconKey?: ModelAvatarProps["iconKey"], className = "h-4 w-4 text-[var(--text-primary)]") {
+function resolveModelIcon(model?: string, iconKey?: ModelAvatarProps["iconKey"], className = "h-4 w-4 text-(--text-primary)") {
   if (iconKey === "claude") {
     return <Anthropic size="1em" className={className} />;
   }
@@ -61,17 +61,17 @@ export function ModelMark({ backend, model, iconKey, className, fallback = "bot"
       return null;
     }
 
-    return <Bot className={className ?? "h-4 w-4 text-[var(--text-primary)]"} />;
+    return <Bot className={className ?? "h-4 w-4 text-(--text-primary)"} />;
   }
 
-  const icon = resolveModelIcon(model, iconKey, className ?? "h-4 w-4 text-[var(--text-primary)]");
+  const icon = resolveModelIcon(model, iconKey, className ?? "h-4 w-4 text-(--text-primary)");
 
   if (!icon) {
     if (fallback === "none") {
       return null;
     }
 
-    return <Bot className={className ?? "h-4 w-4 text-[var(--text-primary)]"} />;
+    return <Bot className={className ?? "h-4 w-4 text-(--text-primary)"} />;
   }
 
   return icon;
@@ -79,10 +79,10 @@ export function ModelMark({ backend, model, iconKey, className, fallback = "bot"
 
 export function ModelAvatar({ backend, model, iconKey, className }: ModelAvatarProps) {
   if (backend !== "opencode") {
-    return avatarShell(<Bot className="h-4 w-4 text-[var(--text-primary)]" />, className);
+    return avatarShell(<Bot className="h-4 w-4 text-(--text-primary)" />, className);
   }
 
-  const icon = <ModelMark backend={backend} model={model} iconKey={iconKey} className="h-4 w-4 text-[var(--text-primary)]" />;
+  const icon = <ModelMark backend={backend} model={model} iconKey={iconKey} className="h-4 w-4 text-(--text-primary)" />;
 
   return avatarShell(icon, className);
 }

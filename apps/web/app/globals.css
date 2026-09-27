@@ -1,130 +1,164 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
 
-:root {
-  color-scheme: light;
-  --font-sans: "Camera Plain Variable", ui-sans-serif, system-ui, sans-serif;
+@theme {
+  --shadow-lattice: 0 24px 80px rgba(2, 6, 23, 0.18);
+
+  --font-sans:
+    Inter Variable, Inter, SF Pro Display, -apple-system, system-ui, Segoe UI,
+    Roboto, Helvetica Neue, Arial, sans-serif;
   --font-mono:
-    "SFMono-Regular", ui-monospace, Menlo, Monaco, monospace;
-
-  --bg-page: #f7f4ed;
-  --bg-panel: rgba(247, 244, 237, 0.96);
-  --bg-surface: rgba(28, 28, 28, 0.03);
-  --bg-surface-hover: rgba(28, 28, 28, 0.04);
-  --bg-input: #f7f4ed;
-  --bg-button-ghost: transparent;
-  --bg-button-subtle: rgba(28, 28, 28, 0.04);
-  --bg-primary: #1c1c1c;
-  --bg-primary-hover: rgba(28, 28, 28, 0.92);
-  --text-primary: #1c1c1c;
-  --text-secondary: rgba(28, 28, 28, 0.83);
-  --text-tertiary: #5f5f5d;
-  --text-quaternary: rgba(28, 28, 28, 0.4);
-  --text-inverse: #fcfbf8;
-  --border-subtle: #eceae4;
-  --border-standard: rgba(28, 28, 28, 0.4);
-  --border-strong: rgba(28, 28, 28, 0.4);
-  --ring: rgba(59, 130, 246, 0.5);
-  --shadow-panel: none;
-  --shadow-elevated: none;
-  --shadow-inset:
-    rgba(255, 255, 255, 0.2) 0px 0.5px 0px 0px inset,
-    rgba(0, 0, 0, 0.2) 0px 0px 0px 0.5px inset,
-    rgba(0, 0, 0, 0.05) 0px 1px 2px 0px;
-  --scrollbar-thumb: rgba(28, 28, 28, 0.18);
-  --scrollbar-track: transparent;
-  --selection: rgba(28, 28, 28, 0.1);
-  --page-glow:
-    radial-gradient(circle at 18% 12%, rgba(230, 188, 145, 0.18), transparent 26%),
-    radial-gradient(circle at 82% 10%, rgba(146, 174, 216, 0.12), transparent 22%),
-    radial-gradient(circle at 50% 72%, rgba(240, 214, 185, 0.1), transparent 26%);
+    Berkeley Mono, ui-monospace, SFMono-Regular, SF Mono, Menlo, monospace;
 }
 
-html[data-theme="dark"] {
-  color-scheme: dark;
-  --bg-page: #151210;
-  --bg-panel: rgba(21, 18, 16, 0.96);
-  --bg-surface: rgba(247, 244, 237, 0.03);
-  --bg-surface-hover: rgba(247, 244, 237, 0.05);
-  --bg-input: rgba(247, 244, 237, 0.02);
-  --bg-button-ghost: transparent;
-  --bg-button-subtle: rgba(247, 244, 237, 0.06);
-  --bg-primary: #f7f4ed;
-  --bg-primary-hover: #fcfbf8;
-  --text-primary: #f7f4ed;
-  --text-secondary: rgba(247, 244, 237, 0.82);
-  --text-tertiary: rgba(247, 244, 237, 0.68);
-  --text-quaternary: rgba(247, 244, 237, 0.42);
-  --text-inverse: #1c1c1c;
-  --border-subtle: rgba(247, 244, 237, 0.08);
-  --border-standard: rgba(247, 244, 237, 0.24);
-  --border-strong: rgba(247, 244, 237, 0.24);
-  --ring: rgba(96, 165, 250, 0.5);
-  --shadow-panel: none;
-  --shadow-elevated: none;
-  --shadow-inset:
-    rgba(255, 255, 255, 0.3) 0px 0.5px 0px 0px inset,
-    rgba(0, 0, 0, 0.18) 0px 0px 0px 0.5px inset,
-    rgba(0, 0, 0, 0.08) 0px 1px 2px 0px;
-  --scrollbar-thumb: rgba(247, 244, 237, 0.2);
-  --scrollbar-track: transparent;
-  --selection: rgba(247, 244, 237, 0.16);
-  --page-glow: none;
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
 }
 
-html {
-  min-height: 100%;
-  background:
-    var(--page-glow),
-    linear-gradient(180deg, var(--bg-page) 0%, var(--bg-page) 100%);
-}
+@layer base {
+  :root {
+    color-scheme: light;
+    --font-sans: "Camera Plain Variable", ui-sans-serif, system-ui, sans-serif;
+    --font-mono:
+      "SFMono-Regular", ui-monospace, Menlo, Monaco, monospace;
 
-body {
-  min-height: 100vh;
-  margin: 0;
-  color: var(--text-primary);
-  font-family: var(--font-sans);
-  text-rendering: optimizeLegibility;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0)),
-    transparent;
-}
+    --bg-page: #f7f4ed;
+    --bg-panel: rgba(247, 244, 237, 0.96);
+    --bg-surface: rgba(28, 28, 28, 0.03);
+    --bg-surface-hover: rgba(28, 28, 28, 0.04);
+    --bg-input: #f7f4ed;
+    --bg-button-ghost: transparent;
+    --bg-button-subtle: rgba(28, 28, 28, 0.04);
+    --bg-primary: #1c1c1c;
+    --bg-primary-hover: rgba(28, 28, 28, 0.92);
+    --text-primary: #1c1c1c;
+    --text-secondary: rgba(28, 28, 28, 0.83);
+    --text-tertiary: #5f5f5d;
+    --text-quaternary: rgba(28, 28, 28, 0.4);
+    --text-inverse: #fcfbf8;
+    --border-subtle: #eceae4;
+    --border-standard: rgba(28, 28, 28, 0.4);
+    --border-strong: rgba(28, 28, 28, 0.4);
+    --ring: rgba(59, 130, 246, 0.5);
+    --shadow-panel: none;
+    --shadow-elevated: none;
+    --shadow-inset:
+      rgba(255, 255, 255, 0.2) 0px 0.5px 0px 0px inset,
+      rgba(0, 0, 0, 0.2) 0px 0px 0px 0.5px inset,
+      rgba(0, 0, 0, 0.05) 0px 1px 2px 0px;
+    --scrollbar-thumb: rgba(28, 28, 28, 0.18);
+    --scrollbar-track: transparent;
+    --selection: rgba(28, 28, 28, 0.1);
+    --page-glow:
+      radial-gradient(circle at 18% 12%, rgba(230, 188, 145, 0.18), transparent 26%),
+      radial-gradient(circle at 82% 10%, rgba(146, 174, 216, 0.12), transparent 22%),
+      radial-gradient(circle at 50% 72%, rgba(240, 214, 185, 0.1), transparent 26%);
+  }
 
-* {
-  box-sizing: border-box;
-  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
-  scrollbar-width: thin;
-}
+  html[data-theme="dark"] {
+    color-scheme: dark;
+    --bg-page: #151210;
+    --bg-panel: rgba(21, 18, 16, 0.96);
+    --bg-surface: rgba(247, 244, 237, 0.03);
+    --bg-surface-hover: rgba(247, 244, 237, 0.05);
+    --bg-input: rgba(247, 244, 237, 0.02);
+    --bg-button-ghost: transparent;
+    --bg-button-subtle: rgba(247, 244, 237, 0.06);
+    --bg-primary: #f7f4ed;
+    --bg-primary-hover: #fcfbf8;
+    --text-primary: #f7f4ed;
+    --text-secondary: rgba(247, 244, 237, 0.82);
+    --text-tertiary: rgba(247, 244, 237, 0.68);
+    --text-quaternary: rgba(247, 244, 237, 0.42);
+    --text-inverse: #1c1c1c;
+    --border-subtle: rgba(247, 244, 237, 0.08);
+    --border-standard: rgba(247, 244, 237, 0.24);
+    --border-strong: rgba(247, 244, 237, 0.24);
+    --ring: rgba(96, 165, 250, 0.5);
+    --shadow-panel: none;
+    --shadow-elevated: none;
+    --shadow-inset:
+      rgba(255, 255, 255, 0.3) 0px 0.5px 0px 0px inset,
+      rgba(0, 0, 0, 0.18) 0px 0px 0px 0.5px inset,
+      rgba(0, 0, 0, 0.08) 0px 1px 2px 0px;
+    --scrollbar-thumb: rgba(247, 244, 237, 0.2);
+    --scrollbar-track: transparent;
+    --selection: rgba(247, 244, 237, 0.16);
+    --page-glow: none;
+  }
 
-*::-webkit-scrollbar {
-  width: 0.75rem;
-  height: 0.75rem;
-}
+  html {
+    min-height: 100%;
+    background:
+      var(--page-glow),
+      linear-gradient(180deg, var(--bg-page) 0%, var(--bg-page) 100%);
+  }
 
-*::-webkit-scrollbar-track,
-*::-webkit-scrollbar-track:hover,
-*::-webkit-scrollbar-track:active {
-  background: var(--scrollbar-track);
-}
+  body {
+    min-height: 100vh;
+    margin: 0;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    text-rendering: optimizeLegibility;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0)),
+      transparent;
+  }
 
-*::-webkit-scrollbar-thumb,
-*::-webkit-scrollbar-thumb:hover,
-*::-webkit-scrollbar-thumb:active {
-  background-color: var(--scrollbar-thumb);
-  border: 0.25rem solid transparent;
-  border-radius: 9999px;
-  background-clip: content-box;
-}
+  * {
+    box-sizing: border-box;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+    scrollbar-width: thin;
+  }
 
-button,
-input,
-textarea {
-  font: inherit;
-}
+  *::-webkit-scrollbar {
+    width: 0.75rem;
+    height: 0.75rem;
+  }
 
-::selection {
-  background: var(--selection);
+  *::-webkit-scrollbar-track,
+  *::-webkit-scrollbar-track:hover,
+  *::-webkit-scrollbar-track:active {
+    background: var(--scrollbar-track);
+  }
+
+  *::-webkit-scrollbar-thumb,
+  *::-webkit-scrollbar-thumb:hover,
+  *::-webkit-scrollbar-thumb:active {
+    background-color: var(--scrollbar-thumb);
+    border: 0.25rem solid transparent;
+    border-radius: 9999px;
+    background-clip: content-box;
+  }
+
+  button,
+  input,
+  textarea {
+    font: inherit;
+  }
+
+  ::selection {
+    background: var(--selection);
+  }
+
 }
 
 @layer base {

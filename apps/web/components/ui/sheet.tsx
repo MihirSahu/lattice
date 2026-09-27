@@ -50,7 +50,7 @@ const SheetContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed z-50 border-[var(--border-subtle)] bg-[var(--bg-panel)] p-6 shadow-[0_20px_48px_rgba(28,28,28,0.16)] focus:outline-none will-change-transform",
+        "fixed z-50 border-(--border-subtle) bg-(--bg-panel) p-6 shadow-[0_20px_48px_rgba(28,28,28,0.16)] focus:outline-hidden will-change-transform",
         sideClasses[side],
         className
       )}
@@ -59,7 +59,7 @@ const SheetContent = React.forwardRef<
       {children}
       {showClose ? (
         <DialogPrimitive.Close
-          className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-tertiary)] transition-colors hover:bg-[var(--bg-button-subtle)] hover:text-[var(--text-primary)] focus:outline-none"
+          className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-(--border-subtle) bg-(--bg-surface) text-(--text-tertiary) transition-colors hover:bg-(--bg-button-subtle) hover:text-(--text-primary) focus:outline-hidden"
         >
           <X className="h-4 w-4" />
           <span className="sr-only">Close</span>
@@ -83,7 +83,7 @@ const SheetTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn("text-[18px] font-[600] leading-[1.3] text-[var(--text-primary)]", className)}
+    className={cn("text-[18px] font-semibold leading-[1.3] text-(--text-primary)", className)}
     {...props}
   />
 ));
@@ -96,7 +96,7 @@ const SheetDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn("text-[14px] leading-[1.55] text-[var(--text-tertiary)]", className)}
+    className={cn("text-[14px] leading-[1.55] text-(--text-tertiary)", className)}
     {...props}
   />
 ));

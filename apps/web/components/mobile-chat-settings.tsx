@@ -34,7 +34,7 @@ export function MobileChatSettings({
 
         <div className="mt-6 space-y-5">
           <div className="space-y-2">
-            <p className="text-[12px] font-[600] uppercase tracking-[0.12em] text-[var(--text-quaternary)]">Sources</p>
+            <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-(--text-quaternary)">Sources</p>
             <Select
               value={selectedFolder || "__all__"}
               onValueChange={(value) => onFolderChange(value === "__all__" ? "" : value)}

@@ -6,10 +6,12 @@ import { getChatDatabase } from "@/lib/server/db/client";
 let migrationPromise: Promise<void> | null = null;
 
 function resolveMigrationsFolder() {
+  // next.config.ts explicitly includes the SQL files in standalone builds.
+  // These runtime path probes must not cause Turbopack to trace the whole repo.
   const candidates = [join(process.cwd(), "drizzle"), join(process.cwd(), "apps/web/drizzle")];
 
   for (const candidate of candidates) {
-    if (existsSync(candidate)) {
+    if (existsSync(/* turbopackIgnore: true */ candidate)) {
       return candidate;
     }
   }
@@ -29,7 +31,7 @@ export function migrateChatDatabase({ db, sqlite }: ReturnType<typeof getChatDat
 
   const appliedRows = db.all<{ tag: string }>(sql`select tag from __lattice_migrations order by tag asc`);
   const migrationTags = new Set(appliedRows.map((row) => row.tag));
-  const migrationFiles = readdirSync(migrationsFolder)
+  const migrationFiles = readdirSync(/* turbopackIgnore: true */ migrationsFolder)
     .filter((entry) => entry.endsWith(".sql"))
     .sort();
 
@@ -40,7 +42,7 @@ export function migrateChatDatabase({ db, sqlite }: ReturnType<typeof getChatDat
       continue;
     }
 
-    const migrationSql = readFileSync(join(migrationsFolder, migrationFile), "utf8");
+    const migrationSql = readFileSync(/* turbopackIgnore: true */ join(/* turbopackIgnore: true */ migrationsFolder, migrationFile), "utf8");
     const appliedAt = new Date().toISOString();
 
     sqlite.transaction(() => {

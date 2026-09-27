@@ -1,6 +1,32 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+@theme {
+  --shadow-lattice: 0 24px 80px rgba(2, 6, 23, 0.18);
+
+  --font-sans:
+    Camera Plain Variable, Inter Variable, Inter, SF Pro Display, -apple-system,
+    system-ui, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif;
+  --font-mono:
+    Berkeley Mono, ui-monospace, SFMono-Regular, SF Mono, Menlo, monospace;
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
 
 /* ─── Design tokens ─────────────────────────────────────────── */
 :root {

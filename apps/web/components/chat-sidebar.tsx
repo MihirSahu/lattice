@@ -56,13 +56,13 @@ export function ChatSidebar({
     <>
       <SidebarHeader className={isCollapsed ? "px-3 py-4" : undefined}>
         <div className={isCollapsed ? "flex justify-center" : "flex items-center gap-3"}>
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-            <LatticeMark className="h-4 w-4 text-[var(--text-primary)]/90" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-(--border-subtle) bg-(--bg-surface)">
+            <LatticeMark className="h-4 w-4 text-(--text-primary)/90" />
           </div>
           {!isCollapsed ? (
             <div>
-              <p className="text-[15px] font-[600] leading-[1.4] text-[var(--text-primary)]">Lattice</p>
-              <p className="text-[13px] leading-[1.5] text-[var(--text-tertiary)]">Scoped vault conversations</p>
+              <p className="text-[15px] font-semibold leading-[1.4] text-(--text-primary)">Lattice</p>
+              <p className="text-[13px] leading-normal text-(--text-tertiary)">Scoped vault conversations</p>
             </div>
           ) : null}
         </div>
@@ -99,8 +99,8 @@ export function ChatSidebar({
                     <span className="h-2.5 w-2.5 rounded-full bg-current" />
                   ) : (
                     <>
-                      <span className="line-clamp-2 text-[14px] font-[600] leading-[1.45]">{activeThread.title}</span>
-                      <span className="text-[12px] leading-[1.45] text-[var(--text-tertiary)]">
+                      <span className="line-clamp-2 text-[14px] font-semibold leading-[1.45]">{activeThread.title}</span>
+                      <span className="text-[12px] leading-[1.45] text-(--text-tertiary)">
                         {activeThread.folder || "All Sources"} · {activeThread.engine.toUpperCase()} · {formatTimestamp(activeThread.updatedAt)}
                       </span>
                     </>
@@ -125,8 +125,8 @@ export function ChatSidebar({
                     <span className="h-2.5 w-2.5 rounded-full bg-current" />
                   ) : (
                     <>
-                      <span className="line-clamp-2 text-[14px] font-[600] leading-[1.45]">New chat</span>
-                      <span className="text-[12px] leading-[1.45] text-[var(--text-tertiary)]">{draftLabel}</span>
+                      <span className="line-clamp-2 text-[14px] font-semibold leading-[1.45]">New chat</span>
+                      <span className="text-[12px] leading-[1.45] text-(--text-tertiary)">{draftLabel}</span>
                     </>
                   )}
                 </SidebarMenuButton>
@@ -148,14 +148,14 @@ export function ChatSidebar({
                     title={`${thread.title} · ${thread.folder || "All Sources"}`}
                   >
                     {isCollapsed ? (
-                      <span className="h-2.5 w-2.5 rounded-full bg-[var(--text-tertiary)]" />
+                      <span className="h-2.5 w-2.5 rounded-full bg-(--text-tertiary)" />
                     ) : (
                       <>
-                        <span className="line-clamp-2 text-[14px] font-[600] leading-[1.45]">{thread.title}</span>
+                        <span className="line-clamp-2 text-[14px] font-semibold leading-[1.45]">{thread.title}</span>
                         <span
                           className={cn(
-                            "text-[12px] leading-[1.45] text-[var(--text-tertiary)]",
-                            mobile ? "text-[10.5px] leading-[1.25]" : undefined
+                            "text-[12px] leading-[1.45] text-(--text-tertiary)",
+                            mobile ? "text-[10.5px] leading-tight" : undefined
                           )}
                         >
                           {thread.folder || "All Sources"} · {thread.engine.toUpperCase()} · {formatTimestamp(thread.updatedAt)}
@@ -169,7 +169,7 @@ export function ChatSidebar({
               !isCollapsed ? (
                 <div
                   className={cn(
-                    "rounded-2xl border border-dashed border-[var(--border-subtle)] px-3 py-4 text-[13px] leading-[1.6] text-[var(--text-tertiary)]",
+                    "rounded-2xl border border-dashed border-(--border-subtle) px-3 py-4 text-[13px] leading-[1.6] text-(--text-tertiary)",
                     mobile ? "rounded-md px-1.5 py-1.5" : undefined
                   )}
                 >
@@ -188,7 +188,7 @@ export function ChatSidebar({
   );
 
   if (mobile) {
-    return <div className="flex h-full flex-col bg-[var(--bg-panel)]">{sidebarBody}</div>;
+    return <div className="flex h-full flex-col bg-(--bg-panel)">{sidebarBody}</div>;
   }
 
   return <Sidebar className={isCollapsed ? "w-[76px]" : "w-[296px]"}>{sidebarBody}</Sidebar>;

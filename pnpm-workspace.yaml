@@ -7,12 +7,17 @@ packages:
 # Never install or change dependencies as a side effect of running a script.
 verifyDepsBeforeRun: false
 injectWorkspacePackages: true
+# Explicitly selected Node 24 types; retain pnpm's release-age gate for other packages.
+minimumReleaseAgeExclude:
+  - "@types/node@24.19.0"
 allowBuilds:
   better-sqlite3: true
   esbuild: true
   opencode-ai: true
   sharp: true
 
-# Next 15 pins an older PostCSS; use the patched compatible 8.x release.
+# Keep transitive build tools on patched releases.
 overrides:
   next>postcss: 8.5.28
+  # Drizzle Kit's legacy loader still pins vulnerable esbuild; validate with drizzle-kit generate.
+  "@esbuild-kit/core-utils>esbuild": 0.28.2

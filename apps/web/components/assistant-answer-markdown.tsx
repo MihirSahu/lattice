@@ -16,36 +16,36 @@ export function AssistantAnswerMarkdown({ children, className }: AssistantAnswer
         remarkPlugins={[remarkGfm]}
         components={{
           h1: ({ node: _node, className: headingClassName, ...props }) => (
-            <h1 className={cn("max-w-full break-words text-[28px] font-[650] leading-[1.15] tracking-[-0.02em] text-[var(--text-primary)]", headingClassName)} {...props} />
+            <h1 className={cn("max-w-full wrap-break-word text-[28px] font-[650] leading-[1.15] tracking-[-0.02em] text-(--text-primary)", headingClassName)} {...props} />
           ),
           h2: ({ node: _node, className: headingClassName, ...props }) => (
-            <h2 className={cn("max-w-full break-words text-[22px] font-[650] leading-[1.2] tracking-[-0.015em] text-[var(--text-primary)]", headingClassName)} {...props} />
+            <h2 className={cn("max-w-full wrap-break-word text-[22px] font-[650] leading-[1.2] tracking-[-0.015em] text-(--text-primary)", headingClassName)} {...props} />
           ),
           h3: ({ node: _node, className: headingClassName, ...props }) => (
-            <h3 className={cn("max-w-full break-words text-[18px] font-[650] leading-[1.3] text-[var(--text-primary)]", headingClassName)} {...props} />
+            <h3 className={cn("max-w-full wrap-break-word text-[18px] font-[650] leading-[1.3] text-(--text-primary)", headingClassName)} {...props} />
           ),
           p: ({ node: _node, className: paragraphClassName, ...props }) => (
-            <p className={cn("max-w-full break-words text-[16px] leading-[1.75] text-[var(--text-primary)]", paragraphClassName)} {...props} />
+            <p className={cn("max-w-full wrap-break-word text-[16px] leading-[1.75] text-(--text-primary)", paragraphClassName)} {...props} />
           ),
           ul: ({ node: _node, className: listClassName, ...props }) => (
-            <ul className={cn("max-w-full list-disc space-y-2 pl-5 text-[16px] leading-[1.7] text-[var(--text-primary)]", listClassName)} {...props} />
+            <ul className={cn("max-w-full list-disc space-y-2 pl-5 text-[16px] leading-[1.7] text-(--text-primary)", listClassName)} {...props} />
           ),
           ol: ({ node: _node, className: listClassName, ...props }) => (
-            <ol className={cn("max-w-full list-decimal space-y-2 pl-5 text-[16px] leading-[1.7] text-[var(--text-primary)]", listClassName)} {...props} />
+            <ol className={cn("max-w-full list-decimal space-y-2 pl-5 text-[16px] leading-[1.7] text-(--text-primary)", listClassName)} {...props} />
           ),
           li: ({ node: _node, className: itemClassName, ...props }) => (
-            <li className={cn("max-w-full break-words pl-1", itemClassName)} {...props} />
+            <li className={cn("max-w-full wrap-break-word pl-1", itemClassName)} {...props} />
           ),
           strong: ({ node: _node, className: strongClassName, ...props }) => (
-            <strong className={cn("font-[650] text-[var(--text-primary)]", strongClassName)} {...props} />
+            <strong className={cn("font-[650] text-(--text-primary)", strongClassName)} {...props} />
           ),
           em: ({ node: _node, className: emphasisClassName, ...props }) => (
-            <em className={cn("italic text-[var(--text-primary)]", emphasisClassName)} {...props} />
+            <em className={cn("italic text-(--text-primary)", emphasisClassName)} {...props} />
           ),
           blockquote: ({ node: _node, className: quoteClassName, ...props }) => (
             <blockquote
               className={cn(
-                "max-w-full break-words border-l-2 border-[var(--border-subtle)] pl-4 text-[16px] italic leading-[1.75] text-[var(--text-secondary)]",
+                "max-w-full wrap-break-word border-l-2 border-(--border-subtle) pl-4 text-[16px] italic leading-[1.75] text-(--text-secondary)",
                 quoteClassName
               )}
               {...props}
@@ -58,7 +58,7 @@ export function AssistantAnswerMarkdown({ children, className }: AssistantAnswer
               return (
                 <code
                   className={cn(
-                    "linear-mono block max-w-full overflow-x-auto rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3 text-[14px] leading-[1.65] text-[var(--text-primary)]",
+                    "linear-mono block max-w-full overflow-x-auto rounded-2xl border border-(--border-subtle) bg-(--bg-surface) px-4 py-3 text-[14px] leading-[1.65] text-(--text-primary)",
                     codeClassName
                   )}
                   {...props}
@@ -71,7 +71,7 @@ export function AssistantAnswerMarkdown({ children, className }: AssistantAnswer
             return (
               <code
                 className={cn(
-                  "linear-mono break-words rounded-md bg-[var(--bg-surface)] px-1.5 py-0.5 text-[0.92em] text-[var(--text-primary)]",
+                  "linear-mono wrap-break-word rounded-md bg-(--bg-surface) px-1.5 py-0.5 text-[0.92em] text-(--text-primary)",
                   codeClassName
                 )}
                 {...props}
@@ -84,7 +84,7 @@ export function AssistantAnswerMarkdown({ children, className }: AssistantAnswer
           a: ({ node: _node, className: anchorClassName, ...props }) => (
             <a
               className={cn(
-                "break-words underline decoration-[var(--border-strong)] underline-offset-4 transition-colors hover:text-[var(--text-primary)]",
+                "wrap-break-word underline decoration-(--border-strong) underline-offset-4 transition-colors hover:text-(--text-primary)",
                 anchorClassName
               )}
               target="_blank"
@@ -98,10 +98,10 @@ export function AssistantAnswerMarkdown({ children, className }: AssistantAnswer
             </div>
           ),
           th: ({ node: _node, className: tableHeaderClassName, ...props }) => (
-            <th className={cn("border border-[var(--border-subtle)] px-3 py-2 text-left font-[650] text-[var(--text-primary)]", tableHeaderClassName)} {...props} />
+            <th className={cn("border border-(--border-subtle) px-3 py-2 text-left font-[650] text-(--text-primary)", tableHeaderClassName)} {...props} />
           ),
           td: ({ node: _node, className: tableCellClassName, ...props }) => (
-            <td className={cn("border border-[var(--border-subtle)] px-3 py-2 text-[var(--text-primary)]", tableCellClassName)} {...props} />
+            <td className={cn("border border-(--border-subtle) px-3 py-2 text-(--text-primary)", tableCellClassName)} {...props} />
           )
         }}
       >

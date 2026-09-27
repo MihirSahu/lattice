@@ -28,7 +28,7 @@ The scheduler triggers S3 sync at a fixed interval. OpenCode reads the mirror di
 
 ## Local setup
 
-Use Node 24 and pnpm 11.1.2 (pinned by `.nvmrc` and `packageManager`). Local pnpm commands use the `sfw` wrapper. All projects share the root `pnpm-lock.yaml`.
+Use Node 24 and pnpm 12.6.0 (pinned by `.nvmrc` and `packageManager`). Local pnpm commands use the `sfw` wrapper. All projects share the root `pnpm-lock.yaml`.
 
 ```bash
 sfw pnpm install --frozen-lockfile
